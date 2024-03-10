@@ -4,7 +4,7 @@ import os
 import datetime
 import numpy as np
 
-def compress_month(satellite: str, month: int, year: int, make_dirs = False, RAW_DATA_DIR = "./../raw_data/", COMPRESSED_DATA_DIR = "./../compressed_data/"):
+def compress_month_REPT(satellite: str, month: int, year: int, make_dirs = False, RAW_DATA_DIR = "./../raw_data/REPT/", COMPRESSED_DATA_DIR = "./../compressed_data/"):
     
     OUTPUT_DIR = os.path.join(COMPRESSED_DATA_DIR, f"{year}")
     
