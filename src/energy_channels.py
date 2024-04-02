@@ -1,5 +1,6 @@
 import enum
 
+
 class EnergyChannel(enum.Enum):
     
     MeV_1_8 = 0

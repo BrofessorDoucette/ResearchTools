@@ -1,6 +1,7 @@
 import builtins
 import enum
 
+
 class DataRef(enum.Enum):
     
     FESA = 0
@@ -9,18 +10,18 @@ class DataRef(enum.Enum):
     EPOCH = 3
     ENERGIES = 4
 
+
 class DataRefContainer:
     
     '''
     This is just a class to package all of the REPT data references into one immutable tuple.
     '''
     
-    def __init__(self, FESA, L, MLT, EPOCH, ENERGIES) -> None:
-        
+    def __init__(self, fesa, L, mlt, epoch, energies) -> None:
+
         #Tuples are immutable, which makes them nice for holding references.
-        self._data = (FESA, L, MLT, EPOCH, ENERGIES)
-        
-        
+        self._data = (fesa, L, mlt, epoch, energies)
+
     def get_all_data(self):
                 
         return self._data
