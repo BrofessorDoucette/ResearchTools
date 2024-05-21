@@ -1,5 +1,6 @@
 import pandas as pd
 import datetime
+from typing import Optional
 
 
 def find_enchancements_based_on_del_ae(omni: pd.DataFrame,
@@ -7,14 +8,14 @@ def find_enchancements_based_on_del_ae(omni: pd.DataFrame,
                                        low_threshold: float,
                                        high_threshold: float,
                                        minimum_duration: datetime.timedelta,
-                                       end_duration: datetime.timedelta):
+                                       end_duration: datetime.timedelta) -> None:
     
     del_ae = (omni["AE"] - omni["AE"].rolling(slow_t, center=True).mean()).abs()
     time = del_ae.index
     
-    current_enhancement = False
-    start = None
-    last_above = None
+    current_enhancement: bool = False
+    start: Optional[datetime.datetime] = None
+    last_above: Optional[datetime.datetime] = None
     
     for t, y in zip(time, del_ae):
         
@@ -35,6 +36,9 @@ def find_enchancements_based_on_del_ae(omni: pd.DataFrame,
             if (current_enhancement is True) and ((t - last_above) > end_duration):
                 
                 current_enhancement = False
+                
+                if last_above is None or start is None:
+                    continue
                 
                 if (last_above - start) > minimum_duration:
                     

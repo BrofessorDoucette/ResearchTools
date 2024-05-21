@@ -1,0 +1,39 @@
+metop1:
+  begin: '2012-10-03'
+  end: null
+metop2:
+  begin: '2013-01-01'
+  end: '2021-11-16'
+noaa05:
+  begin: '1978-11-02'
+  end: '1979-08-11'
+noaa06:
+  begin: '1979-06-28'
+  end: '1986-11-18'
+noaa07:
+  begin: '1981-07-11'
+  end: '1985-02-11'
+noaa08:
+  begin: '1983-05-09'
+  end: '1985-10-14'
+noaa10:
+  begin: '1986-10-11'
+  end: '1991-08-31'
+noaa12:
+  begin: '1991-06-01'
+  end: '1999-09-30'
+noaa14:
+  begin: '1995-01-11'
+  end: '2004-12-31'
+noaa15:
+  begin: '2013-01-01'
+  end: null
+noaa16:
+  begin: '2013-01-01'
+  end: '2014-06-06'
+noaa18:
+  begin: '2013-01-01'
+  end: null
+noaa19:
+  begin: '2013-01-01'
+  end: null

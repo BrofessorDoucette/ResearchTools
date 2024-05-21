@@ -1,20 +1,23 @@
+from data_references import REPTDataRefContainer
+from data_references import POESDataRefContainer
 from energy_channels import EnergyChannel
 from matplotlib import colors
 import matplotlib.pyplot as plt
 import numpy as np
+import numpy.typing as npt
 import pandas as pd
 import scipy.interpolate
 import spacepy.time
-from data_references import DataRefContainer
+import typing
 
 
 OUTPUT_DIR = "./../saved_plots/"
     
 
-def plot_l_cut(refs: DataRefContainer,
+def plot_l_cut(refs: REPTDataRefContainer,
                l_cut: float, tol: float = 0.01,
-               grid_t ="6h", avg_t ="12h",
-               axis = None) -> pd.DataFrame:
+               grid_t: str = "6h", avg_t: str = "12h",
+               axis: typing.Any = None) -> pd.DataFrame:
     
     if axis is None:
         raise Exception("Axis cannot be None!")
@@ -29,7 +32,7 @@ def plot_l_cut(refs: DataRefContainer,
     fesa_to_plot = pd.DataFrame(fesa[satifies_l_cut, :], index=epoch_to_plot).resample(grid_t).mean()
             
     num_energies = fesa_to_plot.shape[1]
-    flux_colors = plt.cm.plasma(np.linspace(0, 1, num_energies))
+    flux_colors: typing.Any = plt.cm.get_cmap("plasma", num_energies)
 
     fesa_to_plot = fesa_to_plot.rolling(window=avg_t, center=True).mean()
     
@@ -48,9 +51,9 @@ def plot_l_cut(refs: DataRefContainer,
     return fesa_to_plot
 
 
-def plot_l_vs_time(refs: DataRefContainer, energy_channel: EnergyChannel,
-                   l_min = 2, l_max = 6.5, flux_min = 5e0, flux_max = 1e2,
-                   axis=None):
+def plot_l_vs_time(refs: REPTDataRefContainer, energy_channel: EnergyChannel,
+                   l_min: float = 2, l_max: float = 6.5, flux_min: float = 5e0, flux_max: float = 1e2,
+                   axis: typing.Any = None) -> None:
               
     if axis is None:
         raise Exception("Axis cannot be None!")
@@ -58,7 +61,7 @@ def plot_l_vs_time(refs: DataRefContainer, energy_channel: EnergyChannel,
     fesa, L, mlt, epoch, energies = refs.get_all_data()
     
     fesa = fesa[:, energy_channel.value] + 1e-9
-    JD = spacepy.time.Ticktock(epoch, dtype="UTC").getJD()
+    JD: npt.NDArray[np.float_] = spacepy.time.Ticktock(epoch, dtype="UTC").getJD()
     
     _, unique_JD = np.unique(JD, return_index=True)
     JD = JD[unique_JD]
@@ -87,3 +90,4 @@ def plot_l_vs_time(refs: DataRefContainer, energy_channel: EnergyChannel,
     
     cbar.set_label("($cm^{-2}s^{-1}sr^{-1}MeV^{-1}$)\n", loc="center", labelpad=15, rotation=270)
     axis.set_title(f"{energies[energy_channel.value]} MeV", fontsize = 10)
+
