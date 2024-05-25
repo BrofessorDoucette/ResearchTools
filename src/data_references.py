@@ -84,7 +84,7 @@ class POESDataRefContainer:
                                 npt.NDArray[np.float32],
                                 npt.NDArray[np.float32],
                                 npt.NDArray[np.float32],
-                                npt.NDArray[np.float32]]:
+                                npt.NDArray[np.float32], str]:
 
         '''Returns all of the REPT Data in a tuple of NDArrays.
         This method is preferred over get_data as it preserves type hints for static analysis,

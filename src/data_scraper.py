@@ -120,8 +120,6 @@ def download_month_goes_netcdf(month: int, year: int,
                                make_dirs: bool = False,
                                raw_data_dir: str = "./../raw_data/GOES/") -> None:
 
-    #https://agupubs.onlinelibrary.wiley.com/doi/10.1002/2013GL059181
-
     output_dir = os.path.join(raw_data_dir, f"{year}/")
 
     os_helper.verify_output_dir_exists(directory = output_dir, force_creation = make_dirs, hint="RAW GOES DIR")

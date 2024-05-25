@@ -58,7 +58,7 @@ def load_omni_data(start: datetime.datetime, end: datetime.datetime,
               
 def load_compressed_rept_data(satellite: str,
                               start: datetime.datetime, end: datetime.datetime,
-                              rept_dir: str = "./../compressed_data/REPT/") -> REPTDataRefContainer:
+                              rept_dir: str = "./../compressed_data/RBSP/") -> REPTDataRefContainer:
     
     fesa = np.zeros(shape=(0, 12), dtype=np.float64)
     L = np.zeros(shape=0, dtype=np.float64)
