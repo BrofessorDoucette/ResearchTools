@@ -13,9 +13,6 @@ import data_loader
 import time
 import numba as nb
 from numba import njit
-import warnings
-
-warnings.filterwarnings('error', category=np.RankWarning)
 
 M_e = scipy.constants.physical_constants["electron mass energy equivalent in MeV"][0]
 
@@ -27,7 +24,7 @@ def quadratic(x, a, b, c):
     
     return a * x ** 2 + b * x + c
 
-@njit(cache=True)    
+@njit(cache=True, inline="always")    
 def interpolate_through_time(alpha, energies, JD, PSD):
     
     for A in range(len(alpha)):
@@ -44,6 +41,17 @@ def interpolate_through_time(alpha, energies, JD, PSD):
                 
                 PSD[JD_interp_region, A, E] = np.interp(JD[JD_interp_region], JD[not_nan], PSD[not_nan, A, E])
                 
+@njit(cache=True, inline="always")
+def accelerated_interp(x, xp, fp):
+    
+    j = np.searchsorted(xp, x, side="right") - 1
+        
+    if (j < 0) or (j >= xp.size - 1):
+        return np.NaN
+    
+    d = (x - xp[j]) / (xp[j+1] - xp[j])
+    return (1 - d) * fp[j] + d * fp[j+1]
+                
 
 def calculate_psd(dependencies: dict,
                   chosen_mu: float,
@@ -53,6 +61,10 @@ def calculate_psd(dependencies: dict,
                   verbose: bool = False) -> None:
         
     '''This version does linear interpolation across time for every pitch angle and energy.'''
+    
+    import warnings
+
+    warnings.filterwarnings('error')
     
     ect_fedu = dependencies["ECT_FEDU"]
     ect_JD = dependencies["ECT_JD"]
@@ -91,11 +103,11 @@ def calculate_psd(dependencies: dict,
                 
     print(f"Time taken to interpolate over time: {time.time() - t4}")
     
-    extracted_JD = np.array([])
-    extracted_Lstar = np.array([])
-    extracted_PSD = np.array([])
-    extracted_in_out = np.array([])
-    extracted_orbit_number = np.array([])
+    extracted_epoch = []
+    extracted_Lstar = []
+    extracted_PSD = []
+    extracted_in_out = []
+    extracted_orbit_number = []
     
     t5 = time.time()
     
@@ -168,8 +180,8 @@ def calculate_psd(dependencies: dict,
         if not np.any(not_nan):
             continue
         
-        selected_L_star = np.interp(selected_alpha, magephem_alpha[not_nan], L_star[T, not_nan], left=np.NaN, right = np.NaN)
-        
+        selected_L_star = accelerated_interp(selected_alpha, magephem_alpha[not_nan], L_star[T, not_nan])
+
         if(debug_mode and verbose):
             print(f"Selected L_star: {selected_L_star}")
             
@@ -178,7 +190,7 @@ def calculate_psd(dependencies: dict,
                 num_failed_from_L_star += 1
             continue
         
-        psd_per_alpha_at_selected_e = np.array([])
+        psd_per_alpha_at_selected_e = []
         
         for A in range(PSD.shape[1]):
             
@@ -186,22 +198,22 @@ def calculate_psd(dependencies: dict,
             
             if np.any(not_nan):
                 
-                np.append(psd_per_alpha_at_selected_e, np.interp(selected_E, ect_energies[not_nan], PSD[T, A, not_nan], left=np.NaN, right=np.NaN))
+                psd_per_alpha_at_selected_e.append(accelerated_interp(selected_E, ect_energies[not_nan], PSD[T, A, not_nan]))
                 
             else:
                 
-                np.append(psd_per_alpha_at_selected_e, np.NaN)
-        
+                psd_per_alpha_at_selected_e.append(np.NaN)
+                
         not_nan = np.isfinite(psd_per_alpha_at_selected_e)
         
         if not np.any(not_nan):
             continue
-                
-        np.append(extracted_JD, ect_JD[T])
-        np.append(extracted_Lstar, selected_L_star)
-        np.append(extracted_PSD, np.interp(selected_alpha, ect_fedu_alpha[not_nan], psd_per_alpha_at_selected_e[not_nan], left=np.NaN, right=np.NaN))
-        np.append(extracted_in_out, in_out[T])
-        np.append(extracted_orbit_number, orbit_number[T])
+                        
+        extracted_epoch.append(ect_epoch[T])
+        extracted_Lstar.append(selected_L_star)
+        extracted_PSD.append(accelerated_interp(selected_alpha, ect_fedu_alpha[not_nan], np.asarray(psd_per_alpha_at_selected_e)[not_nan]))
+        extracted_in_out.append(in_out[T])
+        extracted_orbit_number.append(orbit_number[T])
                 
     if(debug_mode):
         print(f"Number failed: From K: {num_failed_from_k}")
@@ -209,8 +221,9 @@ def calculate_psd(dependencies: dict,
 
     print(f"Time taken for loop: {time.time() - t5}")
     
-
-    return extracted_JD, extracted_Lstar, extracted_PSD, extracted_in_out, extracted_orbit_number
+    warnings.filterwarnings("once")
+    
+    return np.asarray(extracted_epoch), np.asarray(extracted_Lstar), np.asarray(extracted_PSD), np.asarray(extracted_in_out), np.asarray(extracted_orbit_number)
     
     
 if __name__ == "__main__":
@@ -230,5 +243,7 @@ if __name__ == "__main__":
     dependencies = data_loader.load_psd_dependencies(satellite="A", field_model=model.TS04D, start=start, end=end)
 
     JD, Lstar, PSD, in_out, orbit_number = calculate_psd(dependencies=dependencies, chosen_mu=3000, chosen_k=0.18, debug_mode=False, verbose=False)
+
+
         
     print(f"Total time: {time.time() - t_total}")

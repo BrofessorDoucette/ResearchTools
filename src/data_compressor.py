@@ -14,24 +14,26 @@ import re
 def compress_month_rept_l2(satellite: str,
                            month: int, year: int,
                            make_dirs: bool = False,
-                           raw_data_dir: str = "./../raw_data/REPT/",
-                           compressed_data_dir: str = "./../compressed_data/REPT/") -> None:
-    
-    output_dir = os.path.join(os.path.abspath(compressed_data_dir), f"{year}")
-    
-    os_helper.verify_output_dir_exists(directory = output_dir,
-                                       force_creation = make_dirs,
+                           raw_data_dir: str = "./../raw_data/",
+                           compressed_data_dir: str = "./../compressed_data/") -> None:
+
+    output_dir = os.path.join(os.path.abspath(compressed_data_dir), "RBSP", "REPT", f"{year}")
+
+    os_helper.verify_output_dir_exists(directory=output_dir,
+                                       force_creation=make_dirs,
                                        hint="COMPRESSED REPT DIR")
-    
+
     if month < 10:
-        uncompressed_dir = os.path.join(os.path.abspath(raw_data_dir), f"{year}/0{month}")
+        input_dir = os.path.join(os.path.abspath(raw_data_dir), "RBSP", "REPT", f"{year}/0{month}")
         output_file = os.path.join(output_dir, f"REPT_{year}0{month}_{satellite.upper()}.npz")
+
     else:
-        uncompressed_dir = os.path.join(os.path.abspath(raw_data_dir), f"{year}/{month}")
+        input_dir = os.path.join(os.path.abspath(raw_data_dir), "RBSP", "REPT", f"{year}/{month}")
         output_file = os.path.join(output_dir, f"REPT_{year}{month}_{satellite.upper()}.npz")
-        
-    os_helper.verify_input_dir_exists(directory = uncompressed_dir,
-                                      hint = "RAW REPT DIR")
+
+    os_helper.verify_input_dir_exists(directory=input_dir,
+                                      hint="RAW REPT DIR")
+
         
     start = datetime.datetime(year = year, month = month, day = 1)
     
@@ -59,10 +61,10 @@ def compress_month_rept_l2(satellite: str,
             _day = f"0{_day}"
         
         rept_cdf_path_or_empty = glob.glob(pathname=f"rbsp{satellite.lower()}_rel03_ect-rept-sci-l2_{_year}{_month}{_day}*.cdf",
-                                           root_dir=uncompressed_dir)
+                                           root_dir=input_dir)
         
         if len(rept_cdf_path_or_empty) != 0:
-            rept_cdf_path = os.path.join(uncompressed_dir, rept_cdf_path_or_empty[0])
+            rept_cdf_path = os.path.join(input_dir, rept_cdf_path_or_empty[0])
         else:
             print(f"COULDN'T FIND REPT FILE FOR DATE: {_month}/{_day}/{_year}. Skipping!")
             curr += datetime.timedelta(days = 1)
@@ -87,14 +89,14 @@ def compress_month_rept_l2(satellite: str,
 def compress_month_poes(satellite: str,
                         month: int, year: int,
                         make_dirs: bool = False,
-                        raw_data_dir: str ="./../raw_data/POES/",
-                        compressed_data_dir: str ="./../compressed_data/POES/DIRTY/") -> None:
+                        raw_data_dir: str = "./../raw_data/",
+                        compressed_data_dir: str = "./../compressed_data/") -> None:
 
-    input_dir = os.path.join(os.path.abspath(raw_data_dir), satellite)
+    input_dir = os.path.join(os.path.abspath(raw_data_dir), "POES", satellite.lower())
     os_helper.verify_input_dir_exists(directory=input_dir,
-                                      hint=f"POES RAW DIR: {satellite}")
+                                      hint=f"POES RAW DIR: {satellite.lower()}")
 
-    output_dir = os.path.join(os.path.abspath(compressed_data_dir), satellite)
+    output_dir = os.path.join(os.path.abspath(compressed_data_dir), "POES", "DIRTY", satellite.lower())
 
     os_helper.verify_output_dir_exists(directory=output_dir,
                                        force_creation=make_dirs,
@@ -149,10 +151,10 @@ def compress_month_poes(satellite: str,
 
 def compress_poes(satellite: str,
                   make_dirs: bool = False,
-                  raw_data_dir: str = "./../raw_data/POES/",
-                  compressed_data_dir: str = "./../compressed_data/POES/DIRTY") -> None:
+                  raw_data_dir: str = "./../raw_data/",
+                  compressed_data_dir: str = "./../compressed_data/") -> None:
 
-    input_dir = os.path.join(os.path.abspath(raw_data_dir), satellite)
+    input_dir = os.path.join(os.path.abspath(raw_data_dir), "POES", satellite.lower())
 
     os_helper.verify_input_dir_exists(directory = input_dir,
                                       hint = f"RAW POES DIR: {satellite}")
@@ -180,12 +182,13 @@ def compress_poes(satellite: str,
                             raw_data_dir = raw_data_dir,
                             compressed_data_dir = compressed_data_dir)
 
-def compress_PSD_dependencies(sat: str,
+
+def compress_psd_dependencies(satellite: str,
                               field_model: model,
                               month: int, year: int,
                               make_dirs: bool = False,
                               raw_data_dir: str = "./../raw_data/",
-                              compressed_data_dir: str = "./../compressed_data/RBSP/PSD_Dependencies",
+                              compressed_data_dir: str = "./../compressed_data/",
                               debug_mode: bool = False) -> None:
     
     if(month == 12):
@@ -218,6 +221,20 @@ def compress_PSD_dependencies(sat: str,
 
     os_helper.verify_input_dir_exists(emfisis_data_dir, hint="EMFISIS DATA DIR")
 
+    _year = str(year)
+    if month < 10:
+        _month = f"0{month}"
+    else:
+        _month = str(month)
+
+    output_dir = os.path.join(os.path.abspath(compressed_data_dir), "RBSP", "PSD_DEPENDENCIES")
+
+    os_helper.verify_output_dir_exists(directory=output_dir,
+                                       force_creation=make_dirs,
+                                       hint="PSD DEPENDENCY OUTPUT DIR")
+
+    output_file = os.path.join(output_dir, f"PSD_DEPENDENCIES_{_year}{_month}_{satellite.upper()}_{field_model.name}.npz")
+
     emfisis_B = np.zeros((0), dtype=np.float64)
     emfisis_B_invalid = np.zeros((0), dtype=np.int8)
     emfisis_B_filled = np.zeros((0), dtype=np.int8)
@@ -237,7 +254,7 @@ def compress_PSD_dependencies(sat: str,
         if len(_day) < 2:
             _day = f"0{_day}"
             
-        ect_cdf = f"rbsp{sat.lower()}_ect-elec-L3_{_year}{_month}{_day}*.cdf"
+        ect_cdf = f"rbsp{satellite.lower()}_ect-elec-L3_{_year}{_month}{_day}*.cdf"
         ect_cdf_found = glob.glob(ect_cdf, root_dir=ect_data_dir)
         
         if len(ect_cdf_found) != 0:
@@ -251,10 +268,10 @@ def compress_PSD_dependencies(sat: str,
                 
         match field_model:
             case field_model.TS04D:
-                magephem_h5 = f"rbsp{sat.lower()}_def_MagEphem_TS04D_{_year}{_month}{_day}*.h5"
+                magephem_h5 = f"rbsp{satellite.lower()}_def_MagEphem_TS04D_{_year}{_month}{_day}*.h5"
 
             case field_model.T89D:
-                magephem_h5 = f"rbsp{sat.lower()}_def_MagEphem_T89D_{_year}{_month}{_day}*.h5"
+                magephem_h5 = f"rbsp{satellite.lower()}_def_MagEphem_T89D_{_year}{_month}{_day}*.h5"
                 
         magephem_h5_found = glob.glob(magephem_h5, root_dir=magephem_data_dir)
         
@@ -270,7 +287,7 @@ def compress_PSD_dependencies(sat: str,
         magephem_in_out = np.concatenate((magephem_in_out, magephem["InOut"][...]), axis=0)
         magephem_orbit_number = np.concatenate((magephem_orbit_number, magephem["OrbitNumber"][...]), axis=0)
         
-        emfisis_cdf = f"rbsp-{sat.lower()}_magnetometer_1sec-gse_emfisis-l3_{_year}{_month}{_day}*.cdf"
+        emfisis_cdf = f"rbsp-{satellite.lower()}_magnetometer_1sec-gse_emfisis-l3_{_year}{_month}{_day}*.cdf"
         emfisis_cdf_found = glob.glob(emfisis_cdf, root_dir=emfisis_data_dir)
         
         if len(emfisis_cdf_found) != 0:
@@ -292,6 +309,7 @@ def compress_PSD_dependencies(sat: str,
         
     satisfies_timespan = (start < ect_epoch) & (ect_epoch < end)
     ect_fedu = ect_fedu[satisfies_timespan, :, :]
+    
     ect_epoch = ect_epoch[satisfies_timespan]  
     
     ect_JD = spacepy.time.Ticktock(ect_epoch, "UTC").getJD()
@@ -329,20 +347,6 @@ def compress_PSD_dependencies(sat: str,
     emfisis_JD = emfisis_JD[valid_B]
     emfisis_B = emfisis_B[valid_B] / 100000 #Get B Field in Gauss
     B = np.interp(ect_JD, emfisis_JD, emfisis_B, left=np.NAN, right=np.NaN)
-
-    _year = str(year)
-    if month < 10:
-        _month = f"0{month}"
-    else:
-        _month = str(month)
-
-    output_dir = os.path.abspath(compressed_data_dir)
-
-    os_helper.verify_output_dir_exists(directory = output_dir,
-                                       force_creation = make_dirs,
-                                       hint = "PSD DEPENDENCY OUTPUT DIR")
-    
-    output_file = os.path.join(output_dir, f"PSD_DEPENDENCIES_{_year}{_month}_{sat.upper()}_{field_model.name}.npz")
     
     np.savez_compressed(output_file,
                         ECT_FEDU = ect_fedu,
@@ -363,4 +367,4 @@ def compress_PSD_dependencies(sat: str,
 
 if __name__ == "__main__":
 
-    compress_PSD_dependencies(sat="A", field_model=model.TS04D, month=12, year=2013, make_dirs=True, debug_mode=True)
+    compress_psd_dependencies(satellite="A", field_model=model.TS04D, month=12, year=2013, make_dirs=True, debug_mode=True)
