@@ -8,6 +8,7 @@ import pandas as pd
 import os
 import os_helper
 from spacepy import pycdf
+from field_models import model
 import glob
 
 
@@ -160,5 +161,96 @@ def load_compressed_poes_data(satellite: str,
 
     return POESDataRefContainer(epoch, mep_ele_flux, L, mlt, naive_chorus_amplitudes, satellite)
 
+def load_psd_dependencies(satellite: str,
+                          field_model: model,
+                          start: datetime.datetime, end: datetime.datetime, 
+                          compressed_data_dir: str = "./../compressed_data/"):
+    
+    psd_dependency_dir = os.path.join(os.path.abspath(compressed_data_dir), "RBSP", "PSD_Dependencies")
+    
+    os_helper.verify_input_dir_exists(psd_dependency_dir, hint="PSD DEPENDENCY DIR")
+    
+    ect_fedu = np.zeros((0, 35, 102), dtype=np.float32)
+    ect_epoch = np.zeros((0), dtype=datetime.datetime)
+    ect_JD = np.zeros((0), dtype=np.float64)
+    
+    K = np.zeros((0, 35), dtype=np.float64)
+    L_star = np.zeros((0, 35), dtype=np.float64)
+    in_out = np.zeros((0), dtype=np.int32)
+    orbit_number = np.zeros((0), dtype=np.int32)
+    
+    B = np.zeros((0), dtype=np.float64)
+    
+    for i, dt in enumerate(rrule.rrule(rrule.MONTHLY, dtstart=start, until=end)):
 
+        _year = str(dt.year)
+        _month = str(dt.month)
 
+        if len(_month) < 2:
+            _month = f"0{_month}"
+            
+        file_name = f"PSD_DEPENDENCIES_{_year}{_month}_{satellite.upper()}_{field_model.name}.npz"
+        
+        psd_dependency_path = os.path.join(psd_dependency_dir, file_name)
+        
+        if not os.path.exists(psd_dependency_path):
+            raise Exception(f"\nData file not found: {psd_dependency_path}!")
+        
+        
+        print(f"Loading : {file_name}")
+        data = np.load(psd_dependency_path, allow_pickle=True)
+        
+        
+        ect_fedu = np.concatenate((ect_fedu, data["ECT_FEDU"]), axis = 0)
+        ect_epoch = np.concatenate((ect_epoch, data["ECT_EPOCH"]), axis = 0)
+        ect_JD = np.concatenate((ect_JD, data["ECT_JD"]), axis = 0)
+        
+        if i == 0:
+            ect_fedu_energy = data["ECT_FEDU_ENERGY"]
+            ect_fedu_energy_delta_plus = data["ECT_FEDU_ENERGY_DELTA_PLUS"]
+            ect_fedu_energy_delta_minus = data["ECT_FEDU_ENERGY_DELTA_MINUS"]
+            ect_fedu_alpha = data["ECT_FEDU_ALPHA"]
+            magephem_alpha = data["MAGEPHEM_ALPHA"]
+
+        
+        K = np.concatenate((K, data["K"]), axis = 0)
+        L_star = np.concatenate((L_star, data["LSTAR"]), axis = 0)
+        in_out = np.concatenate((in_out, data["IN_OUT"]), axis = 0)
+        orbit_number = np.concatenate((orbit_number, data["ORBIT_NUMBER"]), axis = 0)
+                
+        B = np.concatenate((B, data["B"]), axis = 0)
+        
+        data.close()
+        
+    satisfies_timespan = (start < ect_epoch) & (ect_epoch < end)
+    ect_fedu = ect_fedu[satisfies_timespan, :, :]
+    ect_JD = ect_JD[satisfies_timespan]
+    ect_epoch = ect_epoch[satisfies_timespan]
+    K = K[satisfies_timespan, :]
+    L_star = L_star[satisfies_timespan, :]
+    in_out = in_out[satisfies_timespan]
+    orbit_number = orbit_number[satisfies_timespan]
+    B = B[satisfies_timespan]
+    
+    loaded_data = {
+        "ECT_FEDU" : ect_fedu,
+        "ECT_JD" : ect_JD,
+        "ECT_EPOCH" : ect_epoch,
+        "ECT_FEDU_ENERGY" : ect_fedu_energy,
+        "ECT_FEDU_ENERGY_DELTA_PLUS" : ect_fedu_energy_delta_plus,
+        "ECT_FEDU_ENERGY_DELTA_MINUS" : ect_fedu_energy_delta_minus,
+        "ECT_FEDU_ALPHA" : ect_fedu_alpha,
+        "MAGEPHEM_ALPHA" : magephem_alpha,
+        "K" : K,
+        "LSTAR" : L_star,
+        "IN_OUT" : in_out,
+        "ORBIT_NUMBER" : orbit_number,
+        "B" : B
+    }
+    
+    return loaded_data
+    
+
+if __name__ == "__main__":
+    
+    load_psd_dependencies(satellite="A", field_model=model.TS04D,  start=datetime.datetime(year=2013, month=1, day=1), end=datetime.datetime(year=2013, month=1, day=31, hour=23, minute=59, second=59))
