@@ -27,6 +27,12 @@ def clean_solar_proton_events(satellite: str,
 
     os_helper.verify_input_dir_exists(input_poes_dir, hint=f"POES COMPRESSED DIRTY DIR: {satellite}")
 
+    output_poes_dir = os.path.join(os.path.abspath(clean_data_dir), satellite)
+
+    os_helper.verify_output_dir_exists(directory=output_poes_dir,
+                                       force_creation=make_dirs,
+                                       hint="CLEAN POES DIR")
+
     input_poes_files_or_null = glob.glob(pathname = "*.npz", root_dir = input_poes_dir)
 
     if len(input_poes_files_or_null) == 0:
@@ -107,12 +113,6 @@ def clean_solar_proton_events(satellite: str,
             with open(event_log_file, "w") as f:
 
                 yaml.safe_dump(logged_events, f)
-
-        output_poes_dir = os.path.join(os.path.abspath(clean_data_dir), satellite)
-
-        os_helper.verify_output_dir_exists(directory = output_poes_dir,
-                                           force_creation = make_dirs,
-                                           hint = "CLEAN POES DIR")
 
         input_data_path = os.path.join(input_poes_dir, input_poes_file)
 

@@ -8,6 +8,7 @@ import pandas as pd
 import os
 import os_helper
 from spacepy import pycdf
+from field_models import model
 import glob
 
 
@@ -58,7 +59,9 @@ def load_omni_data(start: datetime.datetime, end: datetime.datetime,
               
 def load_compressed_rept_data(satellite: str,
                               start: datetime.datetime, end: datetime.datetime,
-                              rept_dir: str = "./../compressed_data/RBSP/") -> REPTDataRefContainer:
+                              compressed_data_dir: str = "./../compressed_data/") -> REPTDataRefContainer:
+    
+    rept_data_dir = os.path.join(os.path.abspath(compressed_data_dir),  "RBSP", "REPT")
     
     fesa = np.zeros(shape=(0, 12), dtype=np.float64)
     L = np.zeros(shape=0, dtype=np.float64)
@@ -75,13 +78,13 @@ def load_compressed_rept_data(satellite: str,
         if len(_month) < 2:
             _month = f"0{_month}"
         
-        rept_data_dir = os.path.join(os.path.abspath(rept_dir), f"{_year}/")
-        
-        os_helper.verify_input_dir_exists(directory = rept_data_dir,
+        rept_data_dir_year = os.path.join(os.path.abspath(rept_data_dir), f"{_year}")
+                
+        os_helper.verify_input_dir_exists(directory = rept_data_dir_year,
                                           hint = "REPT DATA DIR")
         
         rept_file_name = f"REPT_{_year}{_month}_{satellite.upper()}.npz"
-        rept_data_path = os.path.join(rept_data_dir, rept_file_name)
+        rept_data_path = os.path.join(rept_data_dir_year, rept_file_name)
 
         if not os.path.exists(rept_data_path):
             raise Exception(f"\nData file not found: {rept_data_path}")
@@ -160,5 +163,92 @@ def load_compressed_poes_data(satellite: str,
 
     return POESDataRefContainer(epoch, mep_ele_flux, L, mlt, naive_chorus_amplitudes, satellite)
 
+def load_psd(satellite: str,
+             field_model: model,
+             start: datetime.datetime, end: datetime.datetime, 
+             compressed_data_dir: str = "./../compressed_data/"):
+    
+    psd_dir = os.path.join(os.path.abspath(compressed_data_dir), "RBSP", "PSD")
+    
+    os_helper.verify_input_dir_exists(psd_dir, hint="PSD DIR")
+    
+    PSD = np.zeros((0, 40, 100), dtype=np.float64)
+    JD = np.zeros((0), dtype=np.float64)
+    EPOCH = np.zeros((0), dtype=datetime.datetime)
+    
+    K = np.zeros((0, 40), dtype=np.float64)
+    L_STAR = np.zeros((0, 40), dtype=np.float64)
+    L = np.zeros((0, 40), np.float64)
+    IN_OUT = np.zeros((0), dtype=np.int32)
+    ORBIT_NUMBER = np.zeros((0), dtype=np.int32)
+    
+    B = np.zeros((0), dtype=np.float64)
+    
+    for i, dt in enumerate(rrule.rrule(rrule.MONTHLY, dtstart=start, until=end)):
 
+        _year = str(dt.year)
+        _month = str(dt.month)
 
+        if len(_month) < 2:
+            _month = f"0{_month}"
+            
+        file_name = f"PSD_{_year}{_month}_{satellite.upper()}_{field_model.name}.npz"
+        
+        psd_path = os.path.join(psd_dir, file_name)
+        
+        if not os.path.exists(psd_path):
+            raise Exception(f"\nData file not found: {psd_path}!")
+        
+        
+        print(f"Loading : {file_name}")
+        data = np.load(psd_path, allow_pickle=True)
+        
+        PSD = np.concatenate((PSD, data["PSD"]), axis = 0)
+        JD = np.concatenate((JD, data["JD"]), axis = 0)
+        EPOCH = np.concatenate((EPOCH, data["EPOCH"]), axis = 0)
+        
+        if i == 0:
+            ENERGIES = data["ENERGIES"]
+            ALPHA = data["ALPHA"]
+
+        K = np.concatenate((K, data["K"]), axis = 0)
+        L_STAR = np.concatenate((L_STAR, data["L_STAR"]), axis = 0)
+        L = np.concatenate((L, data["L"]), axis = 0)
+        IN_OUT = np.concatenate((IN_OUT, data["IN_OUT"]), axis = 0)
+        ORBIT_NUMBER = np.concatenate((ORBIT_NUMBER, data["ORBIT_NUMBER"]), axis = 0)
+            
+        B = np.concatenate((B, data["B"]), axis = 0)
+        
+        data.close()
+        
+    satisfies_timespan = (start < EPOCH) & (EPOCH < end)
+    PSD = PSD[satisfies_timespan, :, :]
+    JD = JD[satisfies_timespan]
+    EPOCH = EPOCH[satisfies_timespan]
+    K = K[satisfies_timespan, :]
+    L_STAR = L_STAR[satisfies_timespan, :]
+    L = L[satisfies_timespan, :]
+    IN_OUT = IN_OUT[satisfies_timespan]
+    ORBIT_NUMBER = ORBIT_NUMBER[satisfies_timespan]
+    B = B[satisfies_timespan]
+    
+    refs = {
+        "PSD" : PSD,
+        "JD" : JD,
+        "EPOCH" : EPOCH,
+        "ENERGIES" : ENERGIES,
+        "ALPHA" : ALPHA,
+        "K" : K,
+        "L_STAR" : L_STAR,
+        "L" : L,
+        "IN_OUT" : IN_OUT,
+        "ORBIT_NUMBER" : ORBIT_NUMBER,
+        "B" : B
+    }
+    
+    return refs
+    
+
+if __name__ == "__main__":
+    
+    load_psd(satellite="A", field_model=model.TS04D,  start=datetime.datetime(year=2013, month=1, day=1), end=datetime.datetime(year=2013, month=1, day=31, hour=23, minute=59, second=59))
