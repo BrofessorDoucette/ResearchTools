@@ -348,6 +348,7 @@ def calculate_and_compress_psd(satellite: str,
                 
         curr_PSD = (curr_ect_fedu[:, :, valid_energy_channels] / pc_squared) * 1.66e-10 * 200.3 #CHEN 2005   
         
+                
         curr_alpha = np.deg2rad(curr_ect["FEDU_Alpha"])
         curr_energies = np.sqrt(curr_energy_maximums * curr_energy_minimums)
                 
@@ -460,8 +461,6 @@ def calculate_and_compress_psd(satellite: str,
     if not np.all(np.diff(JD) > 0):
         raise Exception("ect_JD needs to be strictly increasing to interpolate over time!")
         
-    print(f"Interpolating PSD through time...")
-    interpolate_psd_through_time(JD, PSD)
     
     print(f"Saving: {output_file}")
     
