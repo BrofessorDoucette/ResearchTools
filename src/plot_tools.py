@@ -3,6 +3,7 @@ from data_references import POESDataRefContainer
 from energy_channels import EnergyChannel
 from matplotlib import colors
 import matplotlib.pyplot as plt
+import matplotlib.cm as cm
 import numpy as np
 import numpy.typing as npt
 import pandas as pd
@@ -52,7 +53,7 @@ def plot_l_cut(refs: REPTDataRefContainer,
 
 
 def plot_l_vs_time(refs: REPTDataRefContainer, energy_channel: EnergyChannel,
-                   l_min: float = 2, l_max: float = 6.5, flux_min: float = 5e0, flux_max: float = 1e2,
+                   l_min: float = 2, l_max: float = 7.5, flux_min: float = 5e0, flux_max: float = 1e2,
                    axis: typing.Any = None) -> None:
               
     if axis is None:
@@ -61,31 +62,19 @@ def plot_l_vs_time(refs: REPTDataRefContainer, energy_channel: EnergyChannel,
     fesa, L, mlt, epoch, energies = refs.get_all_data()
     
     fesa = fesa[:, energy_channel.value] + 1e-9
-    JD: npt.NDArray[np.float_] = spacepy.time.Ticktock(epoch, dtype="UTC").getJD()
     
-    _, unique_JD = np.unique(JD, return_index=True)
-    JD = JD[unique_JD]
-    L = L[unique_JD]
-    fesa = fesa[unique_JD]
-        
-    grid_x, grid_y = np.meshgrid(np.linspace(JD[0], JD[-1], len(JD)//300), np.linspace(l_min, l_max, len(JD)//300),
-                                 indexing='ij')
+    _, unique_epoch = np.unique(epoch, return_index=True)
+    epoch = epoch[unique_epoch]
+    L = L[unique_epoch]
+    fesa = fesa[unique_epoch]
+    
+    viridis = cm.get_cmap("viridis")
+    
+    cmap = axis.scatter(epoch, L, c=fesa, cmap=viridis, norm=colors.LogNorm(vmin = flux_min, vmax = flux_max), s = 8)
+    axis.set_facecolor(viridis(0))
 
-    points = np.array([JD, L]).T
-    
-    interpolated_fesa = scipy.interpolate.griddata(points, fesa, (grid_x, grid_y), method="nearest")
-
-    image_cmap = axis.imshow(
-            interpolated_fesa.T,
-            cmap="magma",
-            extent=[JD[0], JD[-1], l_min, l_max],
-            origin='lower',
-            aspect="auto",
-            interpolation="none",
-            norm=colors.LogNorm(vmin=flux_min, vmax=flux_max))
-    
     axis.set_ylabel("L")
-    cbar = plt.colorbar(image_cmap, ax=axis, pad=0.01)
+    cbar = plt.colorbar(cmap, ax=axis, pad=0.01)
     axis.tick_params('both', length = 3, width = 2)
     
     cbar.set_label("($cm^{-2}s^{-1}sr^{-1}MeV^{-1}$)\n", loc="center", labelpad=15, rotation=270)

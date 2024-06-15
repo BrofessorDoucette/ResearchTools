@@ -23,11 +23,14 @@ def quadratic(x, a, b, c):
     return a * x ** 2 + b * x + c
                 
 @njit(cache=True, inline="always")
-def accelerated_interp(x, xp, fp):
+def accelerated_interp(x, xp, fp, max_dist_in_orders_of_magnitude):
     
     j = np.searchsorted(xp, x, side="right") - 1
         
     if (j < 0) or (j >= xp.size - 1):
+        return np.NaN
+    
+    if (np.log10(xp[j+1]) - np.log10(xp[j])) > max_dist_in_orders_of_magnitude:
         return np.NaN
     
     d = (x - xp[j]) / (xp[j+1] - xp[j])
@@ -75,12 +78,16 @@ def select_mu_and_k_from_psd(refs: dict,
     
     for T in range(len(JD)):
         
+        if not np.isfinite(B[T]):
+            print(f"B was NaN! : {EPOCH[T]}")
+            continue
+        
         not_nan_and_less_than_max_k = np.isfinite(K[T, :]) & (K[T, :] < 0.25)
         
         if not np.any(not_nan_and_less_than_max_k):
             continue
                 
-        alpha_to_fit = ALPHA[not_nan_and_less_than_max_k]
+        alpha_to_fit = ALPHA[T, not_nan_and_less_than_max_k]
         k_to_fit = K[T, not_nan_and_less_than_max_k]
         alpha_of_min_k = alpha_to_fit[np.argmin(k_to_fit)]
         
@@ -122,9 +129,12 @@ def select_mu_and_k_from_psd(refs: dict,
         
         if(debug_mode and verbose):
             print(f"Chosen K: {chosen_k}, Selected Alpha: {selected_alpha}")
-            
                 
         E_coefs = np.array([1, (2 * M_e), -1 * ((2 * M_e * B[T] * chosen_mu) / (np.sin(selected_alpha) ** 2))])
+        
+        if debug_mode and verbose:
+            print(f"E_coefs: {E_coefs}")
+            
         roots = np.roots(E_coefs)
         positive_roots = (roots > 0)
         
@@ -142,8 +152,8 @@ def select_mu_and_k_from_psd(refs: dict,
         if not np.any(not_nan):
             continue
         
-        selected_L_star = accelerated_interp(selected_alpha, ALPHA[not_nan], L_STAR[T, not_nan])
-        selected_L = accelerated_interp(selected_alpha, ALPHA[not_nan], L[T, not_nan])
+        selected_L_star = accelerated_interp(selected_alpha, ALPHA[T, not_nan], L_STAR[T, not_nan], max_dist_in_orders_of_magnitude = 1)
+        selected_L = accelerated_interp(selected_alpha, ALPHA[T, not_nan], L[T, not_nan], max_dist_in_orders_of_magnitude = 1)
         
         if(debug_mode and verbose):
             print(f"Selected L_star: {selected_L_star}")
@@ -155,29 +165,31 @@ def select_mu_and_k_from_psd(refs: dict,
         
         psd_per_alpha_at_selected_e = []
         
-        
         for A in range(PSD.shape[1]):
             
-            not_nan = np.isfinite(PSD[T, A, :])
+            valid_e = np.isfinite(PSD[T, A, :]) & np.isfinite(ENERGIES[T, :])
             
-            if np.any(not_nan):
+            if np.any(valid_e):
                 
-                psd_per_alpha_at_selected_e.append(accelerated_interp(selected_E, ENERGIES[not_nan], PSD[T, A, not_nan]))
+                #plt.semilogy(ENERGIES[T, valid_e], PSD[T, A, valid_e])
+                #plt.show()
+                
+                psd_per_alpha_at_selected_e.append(np.exp(accelerated_interp(selected_E * 1000, ENERGIES[T, valid_e] * 1000, np.log(PSD[T, A, valid_e]), max_dist_in_orders_of_magnitude = 1)))
                 
             else:
                 
                 psd_per_alpha_at_selected_e.append(np.NaN)
                 
         
-        not_nan = np.isfinite(psd_per_alpha_at_selected_e)
+        valid_a = np.isfinite(psd_per_alpha_at_selected_e)
         
-        if not np.any(not_nan):
+        if not np.any(valid_a):
             continue
                         
         extracted_epoch.append(EPOCH[T])
         extracted_Lstar.append(selected_L_star)
         extracted_L.append(selected_L)
-        extracted_PSD.append(accelerated_interp(selected_alpha, ALPHA[not_nan], np.asarray(psd_per_alpha_at_selected_e)[not_nan]))
+        extracted_PSD.append(accelerated_interp(selected_alpha, ALPHA[T, valid_a], np.asarray(psd_per_alpha_at_selected_e)[valid_a], max_dist_in_orders_of_magnitude = 3))
         extracted_in_out.append(IN_OUT[T])
         extracted_orbit_number.append(ORBIT_NUMBER[T])
                 
@@ -212,14 +224,14 @@ if __name__ == "__main__":
                               day = 1)
     
     end = datetime.datetime(year = 2013, 
-                            month = 2, 
-                            day = 1)
+                            month = 1, 
+                            day = 31)
     
     t_total = time.time()
     
     dependencies = data_loader.load_psd(satellite="A", field_model=model.TS04D, start=start, end=end)
 
-    JD, Lstar, PSD, in_out, orbit_number = select_mu_and_k_from_psd(refs=dependencies, chosen_mu=3000, chosen_k=0.18, debug_mode=False, verbose=False)
+    JD, Lstar, PSD, in_out, orbit_number = select_mu_and_k_from_psd(refs=dependencies, chosen_mu=1000, chosen_k=0.07, debug_mode=True, verbose=True)
 
 
         
