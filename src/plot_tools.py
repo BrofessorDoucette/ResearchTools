@@ -7,8 +7,7 @@ import matplotlib.cm as cm
 import numpy as np
 import numpy.typing as npt
 import pandas as pd
-import scipy.interpolate
-import spacepy.time
+from collections.abc import Iterable
 import typing
 
 
@@ -52,31 +51,32 @@ def plot_l_cut(refs: REPTDataRefContainer,
     return fesa_to_plot
 
 
-def plot_l_vs_time(refs: REPTDataRefContainer, energy_channel: EnergyChannel,
-                   l_min: float = 2, l_max: float = 7.5, flux_min: float = 5e0, flux_max: float = 1e2,
-                   axis: typing.Any = None) -> None:
+def plot_l_vs_time_log_colors(x : Iterable, y : Iterable, c : Iterable, 
+                              cmap = cm.get_cmap("viridis"),
+                              cbar_label ="($cm^{-2}s^{-1}sr^{-1}MeV^{-1}$)\n",
+                              axis: typing.Any = None) -> None:
               
+    assert(len(x) == len(y) == len(c))          
+    
     if axis is None:
         raise Exception("Axis cannot be None!")
-                
-    fesa, L, mlt, epoch, energies = refs.get_all_data()
+                        
+    _, unique_x = np.unique(x, return_index=True)
+    x = x[unique_x]
+    y = y[unique_x]
+    c = c[unique_x]
     
-    fesa = fesa[:, energy_channel.value] + 1e-9
+    c_non_zero = (c > 0)
+    x = x[c_non_zero]
+    y = y[c_non_zero]
+    c = c[c_non_zero]
     
-    _, unique_epoch = np.unique(epoch, return_index=True)
-    epoch = epoch[unique_epoch]
-    L = L[unique_epoch]
-    fesa = fesa[unique_epoch]
+    plot_cmap = axis.scatter(x, y, c = c, cmap=cmap, norm=colors.LogNorm(vmin = np.amin(c[np.isfinite(c)]), vmax = np.amax(c[np.isfinite(c)])), s = 8)
     
-    viridis = cm.get_cmap("viridis")
-    
-    cmap = axis.scatter(epoch, L, c=fesa, cmap=viridis, norm=colors.LogNorm(vmin = flux_min, vmax = flux_max), s = 8)
-    axis.set_facecolor(viridis(0))
+    axis.set_facecolor(cmap(0))
 
-    axis.set_ylabel("L")
-    cbar = plt.colorbar(cmap, ax=axis, pad=0.01)
+    cbar = plt.colorbar(plot_cmap, ax=axis, pad=0.01)
     axis.tick_params('both', length = 3, width = 2)
     
-    cbar.set_label("($cm^{-2}s^{-1}sr^{-1}MeV^{-1}$)\n", loc="center", labelpad=15, rotation=270)
-    axis.set_title(f"{energies[energy_channel.value]} MeV", fontsize = 10)
+    cbar.set_label(cbar_label, loc="center", labelpad=15, rotation=270)
 

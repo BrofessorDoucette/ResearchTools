@@ -23,14 +23,14 @@ def quadratic(x, a, b, c):
     return a * x ** 2 + b * x + c
                 
 @njit(cache=True, inline="always")
-def accelerated_interp(x, xp, fp, max_dist_in_orders_of_magnitude):
+def accelerated_interp(x, xp, fp):
     
     j = np.searchsorted(xp, x, side="right") - 1
         
     if (j < 0) or (j >= xp.size - 1):
         return np.NaN
     
-    if (np.log10(xp[j+1]) - np.log10(xp[j])) > max_dist_in_orders_of_magnitude:
+    if (np.log10(xp[j+1]) - np.log10(xp[j])) > 0.5:
         return np.NaN
     
     d = (x - xp[j]) / (xp[j+1] - xp[j])
@@ -39,9 +39,7 @@ def accelerated_interp(x, xp, fp, max_dist_in_orders_of_magnitude):
 
 def select_mu_and_k_from_psd(refs: dict,
                              chosen_mu: float,
-                             chosen_k: float,
-                             debug_mode: bool = False,
-                             verbose: bool = False) -> dict:
+                             chosen_k: float) -> dict:
         
     '''This version does linear interpolation across time for every pitch angle and energy.'''
     
@@ -61,11 +59,9 @@ def select_mu_and_k_from_psd(refs: dict,
     ORBIT_NUMBER = refs["ORBIT_NUMBER"]
     B = refs["B"]
     
+    print(PSD.shape, JD.shape, EPOCH.shape, ENERGIES.shape, ALPHA.shape, K.shape, L_STAR.shape, B.shape)
+    
     M_e = scipy.constants.physical_constants["electron mass energy equivalent in MeV"][0]
-        
-    if(debug_mode):
-        num_failed_from_k = 0
-        num_failed_from_L_star = 0
                     
     extracted_epoch = []
     extracted_Lstar = []
@@ -79,7 +75,6 @@ def select_mu_and_k_from_psd(refs: dict,
     for T in range(len(JD)):
         
         if not np.isfinite(B[T]):
-            print(f"B was NaN! : {EPOCH[T]}")
             continue
         
         not_nan_and_less_than_max_k = np.isfinite(K[T, :]) & (K[T, :] < 0.25)
@@ -100,16 +95,9 @@ def select_mu_and_k_from_psd(refs: dict,
             
         except Exception:
             
-            if(debug_mode and verbose):
-                
-                print(f"Failed to fit k over alpha properly! T: {T}")
-            
             continue
                         
         if(K_coef[0] > chosen_k):
-            
-            if(debug_mode):
-                num_failed_from_k += 1
                 
             continue
                             
@@ -126,14 +114,8 @@ def select_mu_and_k_from_psd(refs: dict,
                 
         if (selected_alpha < 0) or (np.pi < selected_alpha):
             continue
-        
-        if(debug_mode and verbose):
-            print(f"Chosen K: {chosen_k}, Selected Alpha: {selected_alpha}")
                 
         E_coefs = np.array([1, (2 * M_e), -1 * ((2 * M_e * B[T] * chosen_mu) / (np.sin(selected_alpha) ** 2))])
-        
-        if debug_mode and verbose:
-            print(f"E_coefs: {E_coefs}")
             
         roots = np.roots(E_coefs)
         positive_roots = (roots > 0)
@@ -141,26 +123,22 @@ def select_mu_and_k_from_psd(refs: dict,
         if not np.any(positive_roots):
             continue
         
-        selected_E = roots[positive_roots][0]
-                        
-        if(debug_mode and verbose):
-            print(f"Chosen Mu: {chosen_mu}, Selected E: {selected_E}")
+        selected_E = roots[positive_roots][0]  
         
-        
-        not_nan = np.isfinite(L_STAR[T, :])
+        valid_Lstar = np.isfinite(L_STAR[T, :])
+        valid_L = np.isfinite(L[T, :])
     
-        if not np.any(not_nan):
+        if not np.any(valid_Lstar):
             continue
         
-        selected_L_star = accelerated_interp(selected_alpha, ALPHA[T, not_nan], L_STAR[T, not_nan], max_dist_in_orders_of_magnitude = 1)
-        selected_L = accelerated_interp(selected_alpha, ALPHA[T, not_nan], L[T, not_nan], max_dist_in_orders_of_magnitude = 1)
+        selected_L_star = accelerated_interp(selected_alpha, ALPHA[T, valid_Lstar], L_STAR[T, valid_Lstar])
         
-        if(debug_mode and verbose):
-            print(f"Selected L_star: {selected_L_star}")
+        if not np.any(valid_L):
+            continue
+        
+        selected_L = accelerated_interp(selected_alpha, ALPHA[T, valid_L], L[T, valid_L])
             
         if np.isnan(selected_L_star):
-            if(debug_mode):
-                num_failed_from_L_star += 1
             continue
         
         psd_per_alpha_at_selected_e = []
@@ -171,10 +149,7 @@ def select_mu_and_k_from_psd(refs: dict,
             
             if np.any(valid_e):
                 
-                #plt.semilogy(ENERGIES[T, valid_e], PSD[T, A, valid_e])
-                #plt.show()
-                
-                psd_per_alpha_at_selected_e.append(np.exp(accelerated_interp(selected_E * 1000, ENERGIES[T, valid_e] * 1000, np.log(PSD[T, A, valid_e]), max_dist_in_orders_of_magnitude = 1)))
+                psd_per_alpha_at_selected_e.append(np.exp(accelerated_interp(selected_E * 1000, ENERGIES[T, valid_e] * 1000, np.log(PSD[T, A, valid_e]))))
                 
             else:
                 
@@ -185,17 +160,13 @@ def select_mu_and_k_from_psd(refs: dict,
         
         if not np.any(valid_a):
             continue
-                        
+        
         extracted_epoch.append(EPOCH[T])
         extracted_Lstar.append(selected_L_star)
         extracted_L.append(selected_L)
-        extracted_PSD.append(accelerated_interp(selected_alpha, ALPHA[T, valid_a], np.asarray(psd_per_alpha_at_selected_e)[valid_a], max_dist_in_orders_of_magnitude = 3))
+        extracted_PSD.append(accelerated_interp(selected_alpha, ALPHA[T, valid_a], np.asarray(psd_per_alpha_at_selected_e)[valid_a]))
         extracted_in_out.append(IN_OUT[T])
         extracted_orbit_number.append(ORBIT_NUMBER[T])
-                
-    if(debug_mode):
-        print(f"Number failed: From K: {num_failed_from_k}")
-        print(f"Number failed: From L_star: {num_failed_from_L_star}")
 
     print(f"Time taken for loop: {time.time() - t5}")
     
@@ -219,19 +190,19 @@ if __name__ == "__main__":
     
     #This is just for debug, please use the interface provided above. Example can be seen in psd_adiabatic_space.ipynb as of 05/24/2024. Subject to change.
     
-    start = datetime.datetime(year = 2013,
-                              month = 1,
-                              day = 1)
+    start = datetime.datetime(year = 2015,
+                              month = 10,
+                              day = 24)
     
-    end = datetime.datetime(year = 2013, 
-                            month = 1, 
-                            day = 31)
+    end = datetime.datetime(year = 2015, 
+                            month = 11, 
+                            day = 1)
     
     t_total = time.time()
     
-    dependencies = data_loader.load_psd(satellite="A", field_model=model.TS04D, start=start, end=end)
+    dependencies = data_loader.load_psd(satellite="B", field_model=model.TS04D, start=start, end=end)
 
-    JD, Lstar, PSD, in_out, orbit_number = select_mu_and_k_from_psd(refs=dependencies, chosen_mu=1000, chosen_k=0.07, debug_mode=True, verbose=True)
+    selected_refs = select_mu_and_k_from_psd(refs=dependencies, chosen_mu=1000, chosen_k=0.07)
 
 
         

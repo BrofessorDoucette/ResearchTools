@@ -171,7 +171,17 @@ def load_compressed_rept_data(satellite: str,
     
     fesa[fesa < 0] = np.NaN
     
-    return REPTDataRefContainer(fesa, L, mlt, epoch, energies)
+    refs = {
+        
+        "FESA" : fesa,
+        "L" : L,
+        "MLT" : mlt,
+        "EPOCH" : epoch, 
+        "ENERGIES" : energies
+        
+    }
+    
+    return refs
 
 
 def load_compressed_poes_data(satellite: str,
@@ -249,8 +259,10 @@ def load_psd(satellite: str,
     
     B = np.zeros((0), dtype=np.float64)
     
-    for i, dt in enumerate(rrule.rrule(rrule.MONTHLY, dtstart=start, until=end)):
-
+    for i, dt in enumerate(rrule.rrule(rrule.MONTHLY, dtstart = start, until = end)):
+        
+        print(dt)
+        
         _year = str(dt.year)
         _month = str(dt.month)
 
@@ -289,6 +301,8 @@ def load_psd(satellite: str,
     PSD = PSD[satisfies_timespan, :, :]
     JD = JD[satisfies_timespan]
     EPOCH = EPOCH[satisfies_timespan]
+    ENERGIES = ENERGIES[satisfies_timespan, :]
+    ALPHA = ALPHA[satisfies_timespan, :]
     K = K[satisfies_timespan, :]
     L_STAR = L_STAR[satisfies_timespan, :]
     L = L[satisfies_timespan, :]

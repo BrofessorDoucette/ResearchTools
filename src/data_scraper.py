@@ -265,4 +265,7 @@ def download_year_psd_dependencies(satellite: str,
 
 if __name__ == "__main__":
 
-    download_raster_poes_1998_to_2014(make_dirs=True)
+    download_year_psd_dependencies(satellite = "B", 
+                                   field_model = model.TS04D,
+                                   year = 2017,
+                                   make_dirs = True)
