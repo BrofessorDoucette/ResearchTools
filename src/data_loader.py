@@ -258,8 +258,8 @@ def load_psd(satellite: str,
     ORBIT_NUMBER = np.zeros((0), dtype=np.int32)
     
     B = np.zeros((0), dtype=np.float64)
-    
-    for i, dt in enumerate(rrule.rrule(rrule.MONTHLY, dtstart = start, until = end)):
+        
+    for i, dt in enumerate(rrule.rrule(rrule.MONTHLY, dtstart = datetime.datetime(year=start.year, month=start.month, day=1), until = end)):
         
         print(dt)
         

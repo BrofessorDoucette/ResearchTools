@@ -59,7 +59,7 @@ def select_mu_and_k_from_psd(refs: dict,
     ORBIT_NUMBER = refs["ORBIT_NUMBER"]
     B = refs["B"]
     
-    print(PSD.shape, JD.shape, EPOCH.shape, ENERGIES.shape, ALPHA.shape, K.shape, L_STAR.shape, B.shape)
+    #print(PSD.shape, JD.shape, EPOCH.shape, ENERGIES.shape, ALPHA.shape, K.shape, L_STAR.shape, B.shape)
     
     M_e = scipy.constants.physical_constants["electron mass energy equivalent in MeV"][0]
                     
@@ -184,7 +184,52 @@ def select_mu_and_k_from_psd(refs: dict,
     }
     
     return refs
+
+
+def bin_radial_profile(LSTAR, PSD, LSTAR_MIN, LSTAR_MAX, dL = 0.10):
     
+    binned_PSD = []
+    binned_Lstar = []
+    
+    curr = LSTAR_MIN
+    while curr < LSTAR_MAX:
+        
+        bin = (curr < LSTAR) & (LSTAR < curr + dL)
+        if (np.sum(bin) != 0):
+            binned_PSD.append(np.nanmean(PSD[bin]))
+        else:
+            binned_PSD.append(np.NaN)
+        binned_Lstar.append(curr)
+        curr += dL
+        
+    return binned_Lstar, binned_PSD
+    
+    
+def plot_radial_profile(LSTAR, PSD, IS_INBOUND: bool, START_OF_ORBIT: datetime.datetime, AXIS=None):
+    
+    year = str(START_OF_ORBIT.year)
+    month = str(START_OF_ORBIT.month)
+    day = str(START_OF_ORBIT.day)
+    if len(day) < 2:
+        day = f"0{day}"
+    hour = str(START_OF_ORBIT.hour)
+    if len(hour) < 2:
+        hour = f"0{hour}"
+    minute = str(START_OF_ORBIT.minute)
+    if len(minute) < 2:
+        minute = f"0{minute}"
+    
+    if IS_INBOUND:
+        if AXIS == None:
+            plt.semilogy(LSTAR, PSD, marker="*", label=f"{month}/{day}/{year} {hour}:{minute}")
+        else:
+            AXIS.semilogy(LSTAR, PSD, marker="*", label=f"{month}/{day}/{year} {hour}:{minute}")
+    else:
+        if AXIS == None:
+            plt.semilogy(LSTAR, PSD, marker=".", label=f"{month}/{day}/{year} {hour}:{minute}")
+        else:
+            AXIS.semilogy(LSTAR, PSD, marker="*", label=f"{month}/{day}/{year} {hour}:{minute}")
+                
     
 if __name__ == "__main__":
     

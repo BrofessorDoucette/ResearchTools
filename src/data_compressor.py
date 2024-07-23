@@ -471,6 +471,6 @@ if __name__ == "__main__":
 
     for month in range(1, 13):
         
-        calculate_and_compress_psd(satellite="B", field_model=model.TS04D, month=month, year=2017, make_dirs=True, debug_mode=True)
+        calculate_and_compress_psd(satellite="A", field_model=model.TS04D, month=month, year=2016, make_dirs=True, debug_mode=True)
         
     #calculate_and_compress_psd(satellite="B", field_model=model.TS04D, month=3, year=2015, make_dirs=True, debug_mode=True, verbose=False)
