@@ -194,7 +194,7 @@ def bin_radial_profile(LSTAR, PSD, LSTAR_MIN, LSTAR_MAX, dL = 0.10):
     curr = LSTAR_MIN
     while curr < LSTAR_MAX:
         
-        bin = (curr < LSTAR) & (LSTAR < curr + dL)
+        bin = ((curr - dL / 2.0) < LSTAR) & (LSTAR <= (curr + dL / 2.0))
         if (np.sum(bin) != 0):
             binned_PSD.append(np.nanmean(PSD[bin]))
         else:
@@ -202,7 +202,7 @@ def bin_radial_profile(LSTAR, PSD, LSTAR_MIN, LSTAR_MAX, dL = 0.10):
         binned_Lstar.append(curr)
         curr += dL
         
-    return binned_Lstar, binned_PSD
+    return np.asarray(binned_Lstar), np.asarray(binned_PSD)
     
     
 def plot_radial_profile(LSTAR, PSD, IS_INBOUND: bool, START_OF_ORBIT: datetime.datetime, AXIS=None):

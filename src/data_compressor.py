@@ -228,7 +228,7 @@ def calculate_and_compress_psd(satellite: str,
     IN_OUT = np.zeros((0), dtype=np.int32)
     ORBIT_NUMBER = np.zeros((0), dtype=np.int32)
     
-    emfisis_data_dir = os.path.join(os.path.abspath(raw_data_dir), "RBSP", "EMFISIS")
+    emfisis_data_dir = os.path.join(os.path.abspath(raw_data_dir), "RBSP", "EMFISIS", "L3")
 
     os_helper.verify_input_dir_exists(emfisis_data_dir, hint="EMFISIS DATA DIR")
 
@@ -465,12 +465,91 @@ def calculate_and_compress_psd(satellite: str,
                         ORBIT_NUMBER = ORBIT_NUMBER,
                         B = B)
 
+def compress_emfisis_wna_survey_and_diagonal_spectral_matrix(satellite: str,
+                                                             month: int, year: int,
+                                                             make_dirs: bool = False,
+                                                             raw_data_dir: str = "./../raw_data/",
+                                                             compressed_data_dir: str = "./../compressed_data/"):
+    
+    input_dir_L2 = os.path.join(os.path.abspath(raw_data_dir), "RBSP", "EMFISIS", "L2")
+    input_dir_L4 = os.path.join(os.path.abspath(raw_data_dir), "RBSP", "EMFISIS", "L4")
 
+    os_helper.verify_input_dir_exists(directory = input_dir_L2,
+                                      hint = "RAW EMFISIS L2 DIR")
+    
+    os_helper.verify_input_dir_exists(directory = input_dir_L4,
+                                      hint = "RAW EMFISIS L4 DIR")
+    
+    output_dir = os.path.join(os.path.abspath(compressed_data_dir), "RBSP", "EMFISIS", "CHORUS")
 
+    os_helper.verify_output_dir_exists(directory = output_dir,
+                                       force_creation = make_dirs,
+                                       hint = "RBSP EMFISIS CHORUS DIR")
+    
+    if(month == 12):
+        start = datetime.datetime(year = year, month = month, day = 1)
+        end = datetime.datetime(year = year + 1, month = 1, day = 1)
+        
+    else:
+        start = datetime.datetime(year = year, month = month, day = 1)
+        end = datetime.datetime(year = year, month = month + 1, day = 1)
+    
+    _year = str(year)
+    
+    if len(str(month)) < 2:
+        _month = f"0{month}"
+    
+    output_file = os.path.join(output_dir, f"EMFISIS_WNA_SURVEY_AND_DIAGONAL_SPECTRAL_MATRIX_{_year}{_month}_{satellite.upper()}.npz")
+    
+    WFR_bandwidths = np.zeros(shape=(0, 65), dtype=np.float32)
+    
+    curr = start
+    while curr < end:
+        
+        _day = str(curr.day)
+        
+        if len(_day) < 2:
+            _day = f"0{_day}"
+                
+        WFR_spectral_matrix_cdf_path_or_empty = glob.glob(pathname = f"rbsp-{satellite.lower()}_WFR-spectral-matrix-diagonal_emfisis-L2_{_year}{_month}{_day}*.cdf",
+                                                          root_dir = input_dir_L2)
+        
+        if len(WFR_spectral_matrix_cdf_path_or_empty) != 0:
+            WFR_spectral_matrix_cdf_path = os.path.join(input_dir_L2, WFR_spectral_matrix_cdf_path_or_empty[0])
+        else:
+            print(f"COULDN'T FIND WFR SPECTRAL MATRIX CDF FILE FOR DATE: {_month}/{_day}/{_year}. Skipping!")
+            curr += datetime.timedelta(days = 1)
+            continue
+        
+        WNA_survey_cdf_path_or_empty = glob.glob(pathname = f"rbsp-{satellite.lower()}_wna-survey_emfisis-L4_{_year}{_month}{_day}*.cdf",
+                                                root_dir = input_dir_L4)
+        
+        if len(WNA_survey_cdf_path_or_empty) != 0:
+            WNA_survey_cdf_path = os.path.join(input_dir_L4, WNA_survey_cdf_path_or_empty[0])
+        else:
+            print(f"COULDN'T FIND WNA SURVEY CDF FILE FOR DATE: {_month}/{_day}/{_year}. Skipping!")
+            curr += datetime.timedelta(days = 1)
+            continue
+        
+        WFR_spectral_matrix = pycdf.CDF(WFR_spectral_matrix_cdf_path)
+        
+        print(WFR_spectral_matrix["WFR_bandwidth"][...])
+
+        
+        print(WFR_spectral_matrix_cdf_path, WNA_survey_cdf_path)
+    
+        curr += datetime.timedelta(days = 1)
+        
+        
 if __name__ == "__main__":
 
-    for month in range(1, 13):
-        
-        calculate_and_compress_psd(satellite="A", field_model=model.TS04D, month=month, year=2016, make_dirs=True, debug_mode=True)
+    #for month in range(1, 13):
+    #    
+    #    calculate_and_compress_psd(satellite="A", field_model=model.TS04D, month=month, year=2016, make_dirs=True, debug_mode=True)
         
     #calculate_and_compress_psd(satellite="B", field_model=model.TS04D, month=3, year=2015, make_dirs=True, debug_mode=True, verbose=False)
+    
+    compress_emfisis_wna_survey_and_diagonal_spectral_matrix(satellite = "A",
+                                                             month = 1,
+                                                             year = 2013,
+                                                             make_dirs = True)

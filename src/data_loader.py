@@ -22,6 +22,7 @@ def load_omni_data_1hour_res(start: datetime.datetime,
     
     DST = np.zeros(shape=0, dtype=np.int32)
     epoch = np.zeros(shape=0, dtype=datetime.datetime)
+    Kp = np.zeros(shape=0, dtype=np.float32)
     
     for i, dt in enumerate(rrule.rrule(rrule.YEARLY, dtstart=start, until=end)):
 
@@ -45,18 +46,21 @@ def load_omni_data_1hour_res(start: datetime.datetime,
         print(f"Loading: {second_file_for_year}")
 
         omni_2 = pycdf.CDF(second_file_for_year)
-        
+                
         DST = np.concatenate((DST, omni_1["DST"], omni_2["DST"]), axis = 0)
         epoch = np.concatenate((epoch, omni_1["Epoch"], omni_2["Epoch"]), axis = 0)
+        Kp = np.concatenate((Kp, omni_1["KP"][...].astype("float32") / 10.0, omni_2["KP"][...].astype("float32") / 10.0), axis = 0) #Divided by 10 here cause CDF is Kp * 10 for some stupid reason
     
     satisfies_date_extent = (start < epoch) & (epoch < end)
     DST = DST[satisfies_date_extent]
     epoch = epoch[satisfies_date_extent]
+    Kp = Kp[satisfies_date_extent]
     
     refs = {
         
         "DST": DST,
-        "EPOCH": epoch
+        "EPOCH": epoch,
+        "Kp" : Kp
     }
     
     return refs

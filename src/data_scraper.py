@@ -17,6 +17,7 @@ def wget_r_directory(folder_url: str, savdir: str, file_glob = "*.cdf") -> None:
                           "-4",
                           "-e robots=off",
                           "--retry-connrefused",
+                          "--no-check-certificate",
                           "-nc",
                           "-c",
                           "-r",
@@ -205,8 +206,38 @@ def download_raster_poes_1998_to_2014(make_dirs = False,
                                        satellite = _satellite,
                                        make_dirs = make_dirs,
                                        raw_data_dir = raw_data_dir)
+
+
+def download_rbsp_emfisis_wna_survey_L4(year: int,
+                                        satellite: str,
+                                        make_dirs = False,
+                                        raw_data_dir = "./../raw_data/"):
     
+    output_dir = os.path.join(os.path.abspath(raw_data_dir), "RBSP", "EMFISIS", "L4")
     
+    os_helper.verify_output_dir_exists(directory = output_dir,
+                                       force_creation = make_dirs,
+                                       hint = "RAW EMFISIS WNA SURVEY L4 DIR")
+        
+    wget_r_directory(folder_url = f"https://emfisis.physics.uiowa.edu/Flight/RBSP-{satellite.upper()}/L4/{year}",
+                     file_glob = f"rbsp-{satellite.lower()}_wna-survey_emfisis-L4_{year}*v2*.cdf",
+                     savdir = output_dir)
+    
+def download_rbsp_emfisis_diagonal_spectral_matrix_L2(year: int,
+                                                      satellite: str,
+                                                      make_dirs = False,
+                                                      raw_data_dir = "./../raw_data/"):
+    
+    output_dir = os.path.join(os.path.abspath(raw_data_dir), "RBSP", "EMFISIS", "L2")
+    
+    os_helper.verify_output_dir_exists(directory = output_dir,
+                                       force_creation = make_dirs,
+                                       hint = "RAW EMFISIS DIAGONAL SPECTRAL MATRIX L2 DIR")
+        
+    wget_r_directory(folder_url = f"https://emfisis.physics.uiowa.edu/Flight/RBSP-{satellite.upper()}/L2/{year}/",
+                     file_glob = f"rbsp-{satellite.lower()}_WFR-spectral-matrix-diagonal_emfisis-L2_{year}*.cdf",
+                     savdir = output_dir)
+
 
 def download_year_psd_dependencies(satellite: str,
                                    field_model : model,
@@ -265,7 +296,6 @@ def download_year_psd_dependencies(satellite: str,
 
 if __name__ == "__main__":
 
-    download_year_psd_dependencies(satellite = "B", 
-                                   field_model = model.TS04D,
-                                   year = 2017,
-                                   make_dirs = True)
+    download_rbsp_emfisis_diagonal_spectral_matrix_L2(year = 2013, 
+                                                      satellite = "A",
+                                                      make_dirs = True)
