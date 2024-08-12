@@ -1,3 +1,4 @@
+import scipy.interpolate
 from field_models import model
 from numba import njit
 from spacepy import pycdf
@@ -12,6 +13,7 @@ import scipy
 import spacepy
 import matplotlib.pyplot as plt
 from matplotlib import colors
+import itertools
 
 
 def compress_month_rept_l2(satellite: str,
@@ -185,23 +187,6 @@ def compress_poes(satellite: str,
                             raw_data_dir = raw_data_dir,
                             compressed_data_dir = compressed_data_dir)
         
-        
-@njit(cache=True, inline="always")    
-def interpolate_psd_through_time(JD, PSD):
-    
-    for A in range(PSD.shape[1]):
-        for E in range(PSD.shape[2]):
-            not_nan = np.isfinite(PSD[:, A, E])
-            
-            if np.any(not_nan):
-                
-                indices_of_not_nan = np.nonzero(not_nan)[0]
-                JD_interp_start = JD[indices_of_not_nan[0]]
-                JD_interp_end = JD[indices_of_not_nan[-1]]
-                
-                JD_interp_region = (JD_interp_start < JD) & (JD <= JD_interp_end)
-                
-                PSD[JD_interp_region, A, E] = np.interp(JD[JD_interp_region], JD[not_nan], PSD[not_nan, A, E])
 
 def calculate_and_compress_psd(satellite: str,
                               field_model: model,
@@ -226,27 +211,24 @@ def calculate_and_compress_psd(satellite: str,
     
     os_helper.verify_input_dir_exists(ect_data_dir, hint="ECT DATA DIR")
     
-    num_energies = 100
-    num_alpha = 40
-    ENERGIES = np.logspace(-4, 1, num_energies) #This is the energies we will interpolate to in MeV
-    ALPHA = np.linspace((np.pi / 5), (4 * np.pi / 5), num_alpha) # This is the angle we will interpolate to in radians
-    
-    PSD = np.zeros((0, ALPHA.shape[0], ENERGIES.shape[0]), dtype=np.float64)
+    PSD = np.zeros((0, 35, 102), dtype=np.float64)
     EPOCH = np.zeros((0), dtype=datetime.datetime)
     JD = np.zeros((0), dtype=np.float64)
+    ENERGIES = np.zeros((0, 102), dtype=np.float64)
+    ALPHA = np.zeros((0, 35), dtype=np.float64)
     
     magephem_data_dir = os.path.join(os.path.abspath(raw_data_dir), "RBSP", "MAGEPHEM")
     
     os_helper.verify_input_dir_exists(magephem_data_dir, hint="MAGEPEHEM DATA DIR")
 
-    K = np.zeros((0, num_alpha), dtype=np.float64)
-    L_STAR = np.zeros((0, num_alpha), dtype=np.float64)
-    L = np.zeros((0, num_alpha), dtype=np.float64)
+    K = np.zeros((0, 35), dtype=np.float64)
+    L_STAR = np.zeros((0, 35), dtype=np.float64)
+    L = np.zeros((0, 35), dtype=np.float64)
 
     IN_OUT = np.zeros((0), dtype=np.int32)
     ORBIT_NUMBER = np.zeros((0), dtype=np.int32)
     
-    emfisis_data_dir = os.path.join(os.path.abspath(raw_data_dir), "RBSP", "EMFISIS")
+    emfisis_data_dir = os.path.join(os.path.abspath(raw_data_dir), "RBSP", "EMFISIS", "L3")
 
     os_helper.verify_input_dir_exists(emfisis_data_dir, hint="EMFISIS DATA DIR")
 
@@ -327,11 +309,10 @@ def calculate_and_compress_psd(satellite: str,
         curr_ect_fedu_energy_delta_plus = curr_ect["FEDU_Energy_DELTA_plus"][...]
         curr_ect_fedu_energy_delta_minus = curr_ect["FEDU_Energy_DELTA_minus"][...]  
         
-        valid_energy_channels = (curr_ect_fedu_energy > 0) & (curr_ect_fedu_energy_delta_plus > 0) & (curr_ect_fedu_energy_delta_minus > 0)
-        
+        valid_energy_channels = (0 < curr_ect_fedu_energy) & ((curr_ect_fedu_energy / 1000) < 10) & (curr_ect_fedu_energy_delta_plus > 0) & (curr_ect_fedu_energy_delta_minus > 0)    
+            
         if not np.any(valid_energy_channels):
             
-            print([i for i in zip(curr_energy_minimums, curr_energy_maximums, curr_energies)])
             print(f"All of the energy limits and energy channels were negative or zero, this file must be broken somehow! \nPath: {ect_cdf_path}. \nSkipping!")
             
             curr += datetime.timedelta(days = 1) 
@@ -345,13 +326,17 @@ def calculate_and_compress_psd(satellite: str,
         curr_energy_minimums = (curr_valid_ect_fedu_energy - curr_valid_ect_fedu_energy_delta_minus) / 1000.0
         
         pc_squared = 0.5 * (curr_energy_minimums * (curr_energy_minimums + 2 * M_e) + curr_energy_maximums * (curr_energy_maximums + 2 * M_e)) 
-                
-        curr_PSD = (curr_ect_fedu[:, :, valid_energy_channels] / pc_squared) * 1.66e-10 * 200.3 #CHEN 2005   
         
+        curr_PSD = np.full_like(curr_ect_fedu, np.NaN)
+        curr_PSD[:, :, valid_energy_channels] = (curr_ect_fedu[:, :, valid_energy_channels] / pc_squared) * 1.66e-10 * 200.3 #CHEN 2005   
                 
-        curr_alpha = np.deg2rad(curr_ect["FEDU_Alpha"])
-        curr_energies = np.sqrt(curr_energy_maximums * curr_energy_minimums)
-                
+        curr_valid_energies = np.sqrt(curr_energy_maximums * curr_energy_minimums)
+
+        curr_energies = np.full_like(curr_ect_fedu_energy, fill_value = np.NaN)
+        curr_energies[valid_energy_channels] = curr_valid_energies
+            
+        curr_alpha = np.deg2rad(curr_ect["FEDU_Alpha"][...])
+        
         sort_alpha = np.argsort(curr_alpha)  #indices to sort alpha
         sort_energies = np.argsort(curr_energies) #indices to sort energies
         
@@ -360,17 +345,31 @@ def calculate_and_compress_psd(satellite: str,
         curr_PSD = curr_PSD[:, sort_alpha, :]
         curr_PSD = curr_PSD[:, :, sort_energies]
         
+        if debug_mode and verbose:
+            print(f"Loading: {emfisis_cdf_path}")
+            
+        curr_emfisis = spacepy.pycdf.CDF(emfisis_cdf_path)
+        curr_emfisis_B = curr_emfisis["Magnitude"][...]
+        if(curr_emfisis["Epoch"][...].shape[0] <= 0):
+            print(f"Emfisis file had no data!, Skipping: {curr}")
+            curr += datetime.timedelta(days = 1)
+            continue
+        
+        curr_emfisis_JD = spacepy.time.Ticktock(curr_emfisis["Epoch"][...], "UTC").getJD()
+        
+        valid_B = (curr_emfisis["magInvalid"][...] == 0) & (curr_emfisis["magFill"][...] == 0) & (curr_emfisis["calState"][...] == 0)
+        curr_emfisis_B = curr_emfisis_B[valid_B] / 100000.0 #Get B Field in Gauss
+        curr_emfisis_JD = curr_emfisis_JD[valid_B]
+        
+        B = np.concatenate((B, np.interp(curr_ect_JD, curr_emfisis_JD, curr_emfisis_B, left=np.NAN, right=np.NaN)), axis = 0)
+        
+        ENERGIES = np.concatenate((ENERGIES, np.tile(curr_energies, (len(curr_ect_JD), 1))), axis = 0)
+        ALPHA = np.concatenate((ALPHA, np.tile(curr_alpha, (len(curr_ect_JD), 1))), axis = 0)
+                
         if not np.all(np.diff(curr_ect_JD) > 0):
             raise Exception("ect_JD needs to be strictly increasing to interpolate over time!")
         
-        PSD_interpolator = scipy.interpolate.RegularGridInterpolator(points=(curr_ect_JD, curr_alpha, curr_energies), 
-                                                                     values=curr_PSD, 
-                                                                     bounds_error = False, 
-                                                                     fill_value = np.NaN)
-        
-        _x, _y, _z = np.meshgrid(curr_ect_JD, ALPHA, ENERGIES, indexing="ij")
-        
-        PSD = np.concatenate((PSD, PSD_interpolator((_x, _y, _z), method="linear")), axis=0)
+        PSD = np.concatenate((PSD, curr_PSD), axis=0)
         EPOCH = np.concatenate((EPOCH, curr_ect_epoch), axis = 0)
         JD = np.concatenate((JD, curr_ect_JD), axis = 0)
                      
@@ -421,26 +420,13 @@ def calculate_and_compress_psd(satellite: str,
                                                             bounds_error = False, 
                                                             fill_value = np.NaN)
         
-        _x, _y = np.meshgrid(curr_ect_JD, ALPHA, indexing="ij")
+        _x, _y = np.meshgrid(curr_ect_JD, curr_alpha, indexing="ij")
         
         K = np.concatenate((K, K_interpolator((_x, _y), method="linear")), axis = 0)
         L_STAR = np.concatenate((L_STAR, Lstar_interpolator((_x, _y), method="linear")), axis = 0)
         L = np.concatenate((L, L_interpolator((_x, _y), method="linear")), axis = 0)
         IN_OUT = np.concatenate((IN_OUT, np.int32(np.interp(curr_ect_JD, curr_magephem_JD, curr_magephem_in_out, left=np.NAN, right=np.NaN))), axis = 0)
         ORBIT_NUMBER = np.concatenate((ORBIT_NUMBER, np.int32(np.interp(curr_ect_JD, curr_magephem_JD, curr_magephem_orbit_number, left=np.NAN, right=np.NaN))), axis = 0)
-
-        if debug_mode and verbose:
-            print(f"Loading: {emfisis_cdf_path}")
-            
-        curr_emfisis = spacepy.pycdf.CDF(emfisis_cdf_path)
-        curr_emfisis_B = curr_emfisis["Magnitude"][...]
-        curr_emfisis_JD = spacepy.time.Ticktock(curr_emfisis["Epoch"][...], "UTC").getJD()
-        
-        valid_B = (curr_emfisis["magInvalid"][...] == 0) & (curr_emfisis["magFill"][...] == 0) & (curr_emfisis["calState"][...] == 0)
-        curr_emfisis_B = curr_emfisis_B[valid_B] / 100000.0 #Get B Field in Gauss
-        curr_emfisis_JD = curr_emfisis_JD[valid_B]
-        
-        B = np.concatenate((B, np.interp(curr_ect_JD, curr_emfisis_JD, curr_emfisis_B, left=np.NAN, right=np.NaN)), axis = 0)
                 
         if(debug_mode):
             print(f"Successfully loaded all data for: {curr}")
@@ -451,6 +437,8 @@ def calculate_and_compress_psd(satellite: str,
     PSD = PSD[satisfies_timespan, :, :]
     EPOCH = EPOCH[satisfies_timespan]  
     JD = JD[satisfies_timespan]
+    ENERGIES = ENERGIES[satisfies_timespan, :]
+    ALPHA = ALPHA[satisfies_timespan, :]
     K = K[satisfies_timespan, :]
     L_STAR = L_STAR[satisfies_timespan, :]
     L = L[satisfies_timespan, :]
@@ -477,12 +465,91 @@ def calculate_and_compress_psd(satellite: str,
                         ORBIT_NUMBER = ORBIT_NUMBER,
                         B = B)
 
+def compress_emfisis_wna_survey_and_diagonal_spectral_matrix(satellite: str,
+                                                             month: int, year: int,
+                                                             make_dirs: bool = False,
+                                                             raw_data_dir: str = "./../raw_data/",
+                                                             compressed_data_dir: str = "./../compressed_data/"):
+    
+    input_dir_L2 = os.path.join(os.path.abspath(raw_data_dir), "RBSP", "EMFISIS", "L2")
+    input_dir_L4 = os.path.join(os.path.abspath(raw_data_dir), "RBSP", "EMFISIS", "L4")
 
+    os_helper.verify_input_dir_exists(directory = input_dir_L2,
+                                      hint = "RAW EMFISIS L2 DIR")
+    
+    os_helper.verify_input_dir_exists(directory = input_dir_L4,
+                                      hint = "RAW EMFISIS L4 DIR")
+    
+    output_dir = os.path.join(os.path.abspath(compressed_data_dir), "RBSP", "EMFISIS", "CHORUS")
 
+    os_helper.verify_output_dir_exists(directory = output_dir,
+                                       force_creation = make_dirs,
+                                       hint = "RBSP EMFISIS CHORUS DIR")
+    
+    if(month == 12):
+        start = datetime.datetime(year = year, month = month, day = 1)
+        end = datetime.datetime(year = year + 1, month = 1, day = 1)
+        
+    else:
+        start = datetime.datetime(year = year, month = month, day = 1)
+        end = datetime.datetime(year = year, month = month + 1, day = 1)
+    
+    _year = str(year)
+    
+    if len(str(month)) < 2:
+        _month = f"0{month}"
+    
+    output_file = os.path.join(output_dir, f"EMFISIS_WNA_SURVEY_AND_DIAGONAL_SPECTRAL_MATRIX_{_year}{_month}_{satellite.upper()}.npz")
+    
+    WFR_bandwidths = np.zeros(shape=(0, 65), dtype=np.float32)
+    
+    curr = start
+    while curr < end:
+        
+        _day = str(curr.day)
+        
+        if len(_day) < 2:
+            _day = f"0{_day}"
+                
+        WFR_spectral_matrix_cdf_path_or_empty = glob.glob(pathname = f"rbsp-{satellite.lower()}_WFR-spectral-matrix-diagonal_emfisis-L2_{_year}{_month}{_day}*.cdf",
+                                                          root_dir = input_dir_L2)
+        
+        if len(WFR_spectral_matrix_cdf_path_or_empty) != 0:
+            WFR_spectral_matrix_cdf_path = os.path.join(input_dir_L2, WFR_spectral_matrix_cdf_path_or_empty[0])
+        else:
+            print(f"COULDN'T FIND WFR SPECTRAL MATRIX CDF FILE FOR DATE: {_month}/{_day}/{_year}. Skipping!")
+            curr += datetime.timedelta(days = 1)
+            continue
+        
+        WNA_survey_cdf_path_or_empty = glob.glob(pathname = f"rbsp-{satellite.lower()}_wna-survey_emfisis-L4_{_year}{_month}{_day}*.cdf",
+                                                root_dir = input_dir_L4)
+        
+        if len(WNA_survey_cdf_path_or_empty) != 0:
+            WNA_survey_cdf_path = os.path.join(input_dir_L4, WNA_survey_cdf_path_or_empty[0])
+        else:
+            print(f"COULDN'T FIND WNA SURVEY CDF FILE FOR DATE: {_month}/{_day}/{_year}. Skipping!")
+            curr += datetime.timedelta(days = 1)
+            continue
+        
+        WFR_spectral_matrix = pycdf.CDF(WFR_spectral_matrix_cdf_path)
+        
+        print(WFR_spectral_matrix["WFR_bandwidth"][...])
+
+        
+        print(WFR_spectral_matrix_cdf_path, WNA_survey_cdf_path)
+    
+        curr += datetime.timedelta(days = 1)
+        
+        
 if __name__ == "__main__":
 
     #for month in range(1, 13):
     #    
-    #    calculate_and_compress_psd(satellite="A", field_model=model.TS04D, month=month, year=2015, make_dirs=True, debug_mode=True)
+    #    calculate_and_compress_psd(satellite="A", field_model=model.TS04D, month=month, year=2016, make_dirs=True, debug_mode=True)
         
-    calculate_and_compress_psd(satellite="B", field_model=model.TS04D, month=3, year=2015, make_dirs=True, debug_mode=True, verbose=False)
+    #calculate_and_compress_psd(satellite="B", field_model=model.TS04D, month=3, year=2015, make_dirs=True, debug_mode=True, verbose=False)
+    
+    compress_emfisis_wna_survey_and_diagonal_spectral_matrix(satellite = "A",
+                                                             month = 1,
+                                                             year = 2013,
+                                                             make_dirs = True)

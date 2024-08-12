@@ -11,9 +11,66 @@ from spacepy import pycdf
 from field_models import model
 import glob
 
+def load_omni_data_1hour_res(start: datetime.datetime,
+                             end: datetime.datetime,
+                             raw_data_dir: str = "./../raw_data/") -> dict:
+    
+    _1_hour_res_dir = os.path.join(os.path.abspath(raw_data_dir), "OMNI", "_1_hour_res")
+    
+    os_helper.verify_input_dir_exists(directory = _1_hour_res_dir,
+                                      hint = "1 HOUR OMNI INPUT DIR")
+    
+    DST = np.zeros(shape=0, dtype=np.int32)
+    epoch = np.zeros(shape=0, dtype=datetime.datetime)
+    Kp = np.zeros(shape=0, dtype=np.float32)
+    
+    for i, dt in enumerate(rrule.rrule(rrule.YEARLY, dtstart=start, until=end)):
 
-def load_omni_data(start: datetime.datetime, end: datetime.datetime,
-                   omni_dir: str = "./../raw_data/OMNI/") -> pd.DataFrame:
+        _year = str(dt.year)
+        
+        first_file_for_year = os.path.join(_1_hour_res_dir, f"omni2_h0_mrg1hr_{_year}0101_v01.cdf")
+        second_file_for_year = os.path.join(_1_hour_res_dir, f"omni2_h0_mrg1hr_{_year}0701_v01.cdf")
+        
+        if not os.path.exists(first_file_for_year):
+            
+            raise Exception(f"The requested file does not exist: {first_file_for_year}")
+        
+        if not os.path.exists(second_file_for_year):
+            
+            raise Exception(f"The requested file does not exist: {second_file_for_year}")
+        
+        print(f"Loading: {first_file_for_year}")
+        
+        omni_1 = pycdf.CDF(first_file_for_year)
+        
+        print(f"Loading: {second_file_for_year}")
+
+        omni_2 = pycdf.CDF(second_file_for_year)
+                
+        DST = np.concatenate((DST, omni_1["DST"], omni_2["DST"]), axis = 0)
+        epoch = np.concatenate((epoch, omni_1["Epoch"], omni_2["Epoch"]), axis = 0)
+        Kp = np.concatenate((Kp, omni_1["KP"][...].astype("float32") / 10.0, omni_2["KP"][...].astype("float32") / 10.0), axis = 0) #Divided by 10 here cause CDF is Kp * 10 for some stupid reason
+    
+    satisfies_date_extent = (start < epoch) & (epoch < end)
+    DST = DST[satisfies_date_extent]
+    epoch = epoch[satisfies_date_extent]
+    Kp = Kp[satisfies_date_extent]
+    
+    refs = {
+        
+        "DST": DST,
+        "EPOCH": epoch,
+        "Kp" : Kp
+    }
+    
+    return refs
+        
+
+def load_omni_data_1min_res(start: datetime.datetime, 
+                            end: datetime.datetime,
+                            raw_data_dir: str = "./../raw_data/") -> dict:
+    
+    _1_min_res_dir = os.path.join(os.path.abspath(raw_data_dir), "OMNI", "_1_min_res")
 
     bz = np.zeros(shape=0, dtype=np.float32)
     ae_index = np.zeros(shape=0, dtype=np.int32)
@@ -28,10 +85,10 @@ def load_omni_data(start: datetime.datetime, end: datetime.datetime,
         if len(_month) < 2:
             _month = f"0{_month}"
             
-        omni_data_dir = os.path.join(omni_dir, f"{_year}/")
+        omni_data_dir = os.path.join(_1_min_res_dir, f"{_year}/")
         
         os_helper.verify_input_dir_exists(directory = omni_data_dir,
-                                          hint = "OMNI DATA DIR")
+                                          hint = "1 MIN OMNI DATA DIR")
         
         omni_file_name = f"omni_hro2_1min_{_year}{_month}*.cdf"
         omni_cdf_path_or_empty = glob.glob(omni_file_name, root_dir=omni_data_dir)
@@ -54,7 +111,15 @@ def load_omni_data(start: datetime.datetime, end: datetime.datetime,
 
         print(f"Loaded OMNI Data for : {dt}")
         
-    return pd.DataFrame(data={"Bz": bz, "AE": ae_index}, index=epoch)
+    refs = {
+        
+        "Bz" : bz,
+        "AE" : ae_index,
+        "EPOCH": epoch
+        
+    }
+        
+    return refs
     
               
 def load_compressed_rept_data(satellite: str,
@@ -110,7 +175,17 @@ def load_compressed_rept_data(satellite: str,
     
     fesa[fesa < 0] = np.NaN
     
-    return REPTDataRefContainer(fesa, L, mlt, epoch, energies)
+    refs = {
+        
+        "FESA" : fesa,
+        "L" : L,
+        "MLT" : mlt,
+        "EPOCH" : epoch, 
+        "ENERGIES" : energies
+        
+    }
+    
+    return refs
 
 
 def load_compressed_poes_data(satellite: str,
@@ -142,6 +217,7 @@ def load_compressed_poes_data(satellite: str,
 
         if not os.path.exists(poes_data_path):
             print(f"\nData file not found: {poes_data_path}, continuing...!")
+            continue
 
         print(f"Loading : {poes_file_name}")
         data = np.load(poes_data_path, allow_pickle=True)
@@ -166,26 +242,31 @@ def load_compressed_poes_data(satellite: str,
 def load_psd(satellite: str,
              field_model: model,
              start: datetime.datetime, end: datetime.datetime, 
-             compressed_data_dir: str = "./../compressed_data/"):
+             compressed_data_dir: str = "./../compressed_data/") -> dict:
     
     psd_dir = os.path.join(os.path.abspath(compressed_data_dir), "RBSP", "PSD")
     
     os_helper.verify_input_dir_exists(psd_dir, hint="PSD DIR")
     
-    PSD = np.zeros((0, 40, 100), dtype=np.float64)
+    PSD = np.zeros((0, 35, 102), dtype=np.float64)
     JD = np.zeros((0), dtype=np.float64)
     EPOCH = np.zeros((0), dtype=datetime.datetime)
     
-    K = np.zeros((0, 40), dtype=np.float64)
-    L_STAR = np.zeros((0, 40), dtype=np.float64)
-    L = np.zeros((0, 40), np.float64)
+    ENERGIES = np.zeros((0, 102), dtype=np.float64)
+    ALPHA = np.zeros((0, 35), dtype=np.float64)
+    
+    K = np.zeros((0, 35), dtype=np.float64)
+    L_STAR = np.zeros((0, 35), dtype=np.float64)
+    L = np.zeros((0, 35), np.float64)
     IN_OUT = np.zeros((0), dtype=np.int32)
     ORBIT_NUMBER = np.zeros((0), dtype=np.int32)
     
     B = np.zeros((0), dtype=np.float64)
-    
-    for i, dt in enumerate(rrule.rrule(rrule.MONTHLY, dtstart=start, until=end)):
-
+        
+    for i, dt in enumerate(rrule.rrule(rrule.MONTHLY, dtstart = datetime.datetime(year=start.year, month=start.month, day=1), until = end)):
+        
+        print(dt)
+        
         _year = str(dt.year)
         _month = str(dt.month)
 
@@ -207,9 +288,8 @@ def load_psd(satellite: str,
         JD = np.concatenate((JD, data["JD"]), axis = 0)
         EPOCH = np.concatenate((EPOCH, data["EPOCH"]), axis = 0)
         
-        if i == 0:
-            ENERGIES = data["ENERGIES"]
-            ALPHA = data["ALPHA"]
+        ENERGIES = np.concatenate((ENERGIES, data["ENERGIES"]), axis = 0)
+        ALPHA = np.concatenate((ALPHA, data["ALPHA"]), axis = 0)
 
         K = np.concatenate((K, data["K"]), axis = 0)
         L_STAR = np.concatenate((L_STAR, data["L_STAR"]), axis = 0)
@@ -225,6 +305,8 @@ def load_psd(satellite: str,
     PSD = PSD[satisfies_timespan, :, :]
     JD = JD[satisfies_timespan]
     EPOCH = EPOCH[satisfies_timespan]
+    ENERGIES = ENERGIES[satisfies_timespan, :]
+    ALPHA = ALPHA[satisfies_timespan, :]
     K = K[satisfies_timespan, :]
     L_STAR = L_STAR[satisfies_timespan, :]
     L = L[satisfies_timespan, :]
@@ -251,4 +333,7 @@ def load_psd(satellite: str,
 
 if __name__ == "__main__":
     
-    load_psd(satellite="A", field_model=model.TS04D,  start=datetime.datetime(year=2013, month=1, day=1), end=datetime.datetime(year=2013, month=1, day=31, hour=23, minute=59, second=59))
+    refs = load_omni_data_1hour_res(start = datetime.datetime(year = 2013, month = 1, day = 1),
+                             end = datetime.datetime(year = 2014, month = 1, day = 1))
+    
+    print(refs.keys())

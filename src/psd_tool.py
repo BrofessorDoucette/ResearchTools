@@ -30,15 +30,16 @@ def accelerated_interp(x, xp, fp):
     if (j < 0) or (j >= xp.size - 1):
         return np.NaN
     
+    if (np.log10(xp[j+1]) - np.log10(xp[j])) > 0.5:
+        return np.NaN
+    
     d = (x - xp[j]) / (xp[j+1] - xp[j])
     return (1 - d) * fp[j] + d * fp[j+1]
                 
 
 def select_mu_and_k_from_psd(refs: dict,
                              chosen_mu: float,
-                             chosen_k: float,
-                             debug_mode: bool = False,
-                             verbose: bool = False) -> dict:
+                             chosen_k: float) -> dict:
         
     '''This version does linear interpolation across time for every pitch angle and energy.'''
     
@@ -58,11 +59,9 @@ def select_mu_and_k_from_psd(refs: dict,
     ORBIT_NUMBER = refs["ORBIT_NUMBER"]
     B = refs["B"]
     
+    #print(PSD.shape, JD.shape, EPOCH.shape, ENERGIES.shape, ALPHA.shape, K.shape, L_STAR.shape, B.shape)
+    
     M_e = scipy.constants.physical_constants["electron mass energy equivalent in MeV"][0]
-        
-    if(debug_mode):
-        num_failed_from_k = 0
-        num_failed_from_L_star = 0
                     
     extracted_epoch = []
     extracted_Lstar = []
@@ -75,12 +74,15 @@ def select_mu_and_k_from_psd(refs: dict,
     
     for T in range(len(JD)):
         
+        if not np.isfinite(B[T]):
+            continue
+        
         not_nan_and_less_than_max_k = np.isfinite(K[T, :]) & (K[T, :] < 0.25)
         
         if not np.any(not_nan_and_less_than_max_k):
             continue
                 
-        alpha_to_fit = ALPHA[not_nan_and_less_than_max_k]
+        alpha_to_fit = ALPHA[T, not_nan_and_less_than_max_k]
         k_to_fit = K[T, not_nan_and_less_than_max_k]
         alpha_of_min_k = alpha_to_fit[np.argmin(k_to_fit)]
         
@@ -93,16 +95,9 @@ def select_mu_and_k_from_psd(refs: dict,
             
         except Exception:
             
-            if(debug_mode and verbose):
-                
-                print(f"Failed to fit k over alpha properly! T: {T}")
-            
             continue
                         
         if(K_coef[0] > chosen_k):
-            
-            if(debug_mode):
-                num_failed_from_k += 1
                 
             continue
                             
@@ -119,71 +114,59 @@ def select_mu_and_k_from_psd(refs: dict,
                 
         if (selected_alpha < 0) or (np.pi < selected_alpha):
             continue
-        
-        if(debug_mode and verbose):
-            print(f"Chosen K: {chosen_k}, Selected Alpha: {selected_alpha}")
-            
                 
         E_coefs = np.array([1, (2 * M_e), -1 * ((2 * M_e * B[T] * chosen_mu) / (np.sin(selected_alpha) ** 2))])
+            
         roots = np.roots(E_coefs)
         positive_roots = (roots > 0)
         
         if not np.any(positive_roots):
             continue
         
-        selected_E = roots[positive_roots][0]
-                        
-        if(debug_mode and verbose):
-            print(f"Chosen Mu: {chosen_mu}, Selected E: {selected_E}")
+        selected_E = roots[positive_roots][0]  
         
-        
-        not_nan = np.isfinite(L_STAR[T, :])
+        valid_Lstar = np.isfinite(L_STAR[T, :])
+        valid_L = np.isfinite(L[T, :])
     
-        if not np.any(not_nan):
+        if not np.any(valid_Lstar):
             continue
         
-        selected_L_star = accelerated_interp(selected_alpha, ALPHA[not_nan], L_STAR[T, not_nan])
-        selected_L = accelerated_interp(selected_alpha, ALPHA[not_nan], L[T, not_nan])
+        selected_L_star = accelerated_interp(selected_alpha, ALPHA[T, valid_Lstar], L_STAR[T, valid_Lstar])
         
-        if(debug_mode and verbose):
-            print(f"Selected L_star: {selected_L_star}")
+        if not np.any(valid_L):
+            continue
+        
+        selected_L = accelerated_interp(selected_alpha, ALPHA[T, valid_L], L[T, valid_L])
             
         if np.isnan(selected_L_star):
-            if(debug_mode):
-                num_failed_from_L_star += 1
             continue
         
         psd_per_alpha_at_selected_e = []
         
-        
         for A in range(PSD.shape[1]):
             
-            not_nan = np.isfinite(PSD[T, A, :])
+            valid_e = np.isfinite(PSD[T, A, :]) & np.isfinite(ENERGIES[T, :])
             
-            if np.any(not_nan):
+            if np.any(valid_e):
                 
-                psd_per_alpha_at_selected_e.append(accelerated_interp(selected_E, ENERGIES[not_nan], PSD[T, A, not_nan]))
+                psd_per_alpha_at_selected_e.append(np.exp(accelerated_interp(selected_E * 1000, ENERGIES[T, valid_e] * 1000, np.log(PSD[T, A, valid_e]))))
                 
             else:
                 
                 psd_per_alpha_at_selected_e.append(np.NaN)
                 
         
-        not_nan = np.isfinite(psd_per_alpha_at_selected_e)
+        valid_a = np.isfinite(psd_per_alpha_at_selected_e)
         
-        if not np.any(not_nan):
+        if not np.any(valid_a):
             continue
-                        
+        
         extracted_epoch.append(EPOCH[T])
         extracted_Lstar.append(selected_L_star)
         extracted_L.append(selected_L)
-        extracted_PSD.append(accelerated_interp(selected_alpha, ALPHA[not_nan], np.asarray(psd_per_alpha_at_selected_e)[not_nan]))
+        extracted_PSD.append(accelerated_interp(selected_alpha, ALPHA[T, valid_a], np.asarray(psd_per_alpha_at_selected_e)[valid_a]))
         extracted_in_out.append(IN_OUT[T])
         extracted_orbit_number.append(ORBIT_NUMBER[T])
-                
-    if(debug_mode):
-        print(f"Number failed: From K: {num_failed_from_k}")
-        print(f"Number failed: From L_star: {num_failed_from_L_star}")
 
     print(f"Time taken for loop: {time.time() - t5}")
     
@@ -201,25 +184,70 @@ def select_mu_and_k_from_psd(refs: dict,
     }
     
     return refs
+
+
+def bin_radial_profile(LSTAR, PSD, LSTAR_MIN, LSTAR_MAX, dL = 0.10):
     
+    binned_PSD = []
+    binned_Lstar = []
+    
+    curr = LSTAR_MIN
+    while curr < LSTAR_MAX:
+        
+        bin = ((curr - dL / 2.0) < LSTAR) & (LSTAR <= (curr + dL / 2.0))
+        if (np.sum(bin) != 0):
+            binned_PSD.append(np.nanmean(PSD[bin]))
+        else:
+            binned_PSD.append(np.NaN)
+        binned_Lstar.append(curr)
+        curr += dL
+        
+    return np.asarray(binned_Lstar), np.asarray(binned_PSD)
+    
+    
+def plot_radial_profile(LSTAR, PSD, IS_INBOUND: bool, START_OF_ORBIT: datetime.datetime, AXIS=None):
+    
+    year = str(START_OF_ORBIT.year)
+    month = str(START_OF_ORBIT.month)
+    day = str(START_OF_ORBIT.day)
+    if len(day) < 2:
+        day = f"0{day}"
+    hour = str(START_OF_ORBIT.hour)
+    if len(hour) < 2:
+        hour = f"0{hour}"
+    minute = str(START_OF_ORBIT.minute)
+    if len(minute) < 2:
+        minute = f"0{minute}"
+    
+    if IS_INBOUND:
+        if AXIS == None:
+            plt.semilogy(LSTAR, PSD, marker="*", label=f"{month}/{day}/{year} {hour}:{minute}")
+        else:
+            AXIS.semilogy(LSTAR, PSD, marker="*", label=f"{month}/{day}/{year} {hour}:{minute}")
+    else:
+        if AXIS == None:
+            plt.semilogy(LSTAR, PSD, marker=".", label=f"{month}/{day}/{year} {hour}:{minute}")
+        else:
+            AXIS.semilogy(LSTAR, PSD, marker="*", label=f"{month}/{day}/{year} {hour}:{minute}")
+                
     
 if __name__ == "__main__":
     
     #This is just for debug, please use the interface provided above. Example can be seen in psd_adiabatic_space.ipynb as of 05/24/2024. Subject to change.
     
-    start = datetime.datetime(year = 2013,
-                              month = 1,
-                              day = 1)
+    start = datetime.datetime(year = 2015,
+                              month = 10,
+                              day = 24)
     
-    end = datetime.datetime(year = 2013, 
-                            month = 2, 
+    end = datetime.datetime(year = 2015, 
+                            month = 11, 
                             day = 1)
     
     t_total = time.time()
     
-    dependencies = data_loader.load_psd(satellite="A", field_model=model.TS04D, start=start, end=end)
+    dependencies = data_loader.load_psd(satellite="B", field_model=model.TS04D, start=start, end=end)
 
-    JD, Lstar, PSD, in_out, orbit_number = select_mu_and_k_from_psd(refs=dependencies, chosen_mu=3000, chosen_k=0.18, debug_mode=False, verbose=False)
+    selected_refs = select_mu_and_k_from_psd(refs=dependencies, chosen_mu=1000, chosen_k=0.07)
 
 
         
