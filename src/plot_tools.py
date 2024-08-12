@@ -3,6 +3,7 @@ from data_references import POESDataRefContainer
 from energy_channels import EnergyChannel
 from matplotlib import colors
 import matplotlib.pyplot as plt
+from mpl_toolkits.axes_grid1.inset_locator import inset_axes
 import matplotlib.cm as cm
 import numpy as np
 import numpy.typing as npt
@@ -54,7 +55,9 @@ def plot_l_cut(refs: REPTDataRefContainer,
 def plot_l_vs_time_log_colors(x : Iterable, y : Iterable, c : Iterable, 
                               cmap = cm.get_cmap("viridis"),
                               cbar_label ="($cm^{-2}s^{-1}sr^{-1}MeV^{-1}$)\n",
-                              axis: typing.Any = None) -> None:
+                              axis: typing.Any = None,
+                              vmin = None,
+                              vmax = None) -> None:
               
     assert(len(x) == len(y) == len(c))          
     
@@ -71,12 +74,26 @@ def plot_l_vs_time_log_colors(x : Iterable, y : Iterable, c : Iterable,
     y = y[c_non_zero]
     c = c[c_non_zero]
     
-    plot_cmap = axis.scatter(x, y, c = c, cmap=cmap, norm=colors.LogNorm(vmin = np.amin(c[np.isfinite(c)]), vmax = np.amax(c[np.isfinite(c)])), s = 8)
-    
-    axis.set_facecolor(cmap(0))
+    if (vmin is None) or (vmax is None):
+        plot_cmap = axis.scatter(x, y, c = c, cmap=cmap, norm=colors.LogNorm(vmin = np.amin(c[np.isfinite(c)]), vmax = np.amax(c[np.isfinite(c)])), s = 8)
+    else:
+        plot_cmap = axis.scatter(x, y, c = c, cmap=cmap, norm=colors.LogNorm(vmin = vmin, vmax = vmax), s = 8)
 
-    cbar = plt.colorbar(plot_cmap, ax=axis, pad=0.01)
+    axis.set_facecolor("black")
     axis.tick_params('both', length = 3, width = 2)
     
-    cbar.set_label(cbar_label, loc="center", labelpad=15, rotation=270)
+    
+    #To be honest I have no idea how this actually works anymore. Matplotlib is bad and they make it difficult to position the colorbars.
+    axins = inset_axes(
+        axis,
+        width="1%",  # width: 5% of parent_bbox width
+        height="100%",  # height: 50%
+        loc="lower left",
+        bbox_to_anchor=(1.01, 0, 1, 1),
+        bbox_transform=axis.transAxes,
+        borderpad=0
+    )
+
+    cbar = plt.colorbar(plot_cmap, cax=axins)    
+    cbar.set_label(cbar_label, loc="center", labelpad=25, rotation=270)
 

@@ -94,7 +94,7 @@ def calculate_diffusion_coefficients(L, Kp, type : DIFFUSION_COEFFICIENT_TYPE_1D
     return None, None
     
     
-def fokker_planck_1D_simulation(iterations_between_saves, dt, dL, L, f, min_BCs, max_BCs, D_ll, dD_ll_dL, numerical_stability_scaling_factor = 1e7):
+def fokker_planck_1D_simulation(iterations_between_saves, dt, dL, L, f, min_BCs, max_BCs, D_ll, dD_ll_dL, numerical_stability_scaling_factor = 1e7, tau = None):
     
     '''Simulates the 1-D fokker-planck equation. See the notebook simulating_radial_diffusion.ipynb for an example of how to use this.'''
 
