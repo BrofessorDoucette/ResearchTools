@@ -1,5 +1,3 @@
-from data_references import REPTDataRefContainer
-from data_references import POESDataRefContainer
 from energy_channels import EnergyChannel
 from matplotlib import colors
 import matplotlib.pyplot as plt
@@ -15,7 +13,7 @@ import typing
 OUTPUT_DIR = "./../saved_plots/"
     
 
-def plot_l_cut(refs: REPTDataRefContainer,
+def plot_l_cut(refs: dict,
                l_cut: float, tol: float = 0.01,
                grid_t: str = "6h", avg_t: str = "12h",
                axis: typing.Any = None) -> pd.DataFrame:
@@ -23,8 +21,12 @@ def plot_l_cut(refs: REPTDataRefContainer,
     if axis is None:
         raise Exception("Axis cannot be None!")
     
-    fesa, L, mlt, epoch, energies = refs.get_all_data()
-
+    fesa = refs["FESA"]
+    L = refs["L"]
+    mlt = refs["MLT"]
+    epoch = refs["EPOCH"]
+    energies = refs["ENERGIES"]
+    
     fesa = fesa[:, (energies < 6.5)]
     
     satifies_l_cut = ((l_cut - tol) < L) & (L < (l_cut + tol))
@@ -94,6 +96,37 @@ def plot_l_vs_time_log_colors(x : Iterable, y : Iterable, c : Iterable,
         borderpad=0
     )
 
+    plot_cmap.cmap.set_under("black")
     cbar = plt.colorbar(plot_cmap, cax=axins)    
     cbar.set_label(cbar_label, loc="center", labelpad=25, rotation=270)
+
+def bin_3D_data(xdata, ydata, zdata, xstart, xend, xstep, ystart, yend, ystep, xprecision=3, yprecision=3):
+    
+    '''This is used when plotting the chorus proxy, chorus from VAP, fokker-planck simulation results, etc. 
+        This function is fast for high resolution bins, but slow for large input arrays.
+        (xend - xstart)/xstep should be an integer, and (yend - ystart)/ystep should be an integer.'''
+    
+    x_bin_edges = [xstart + j * xstep for j in range((int((xend - xstart) / xstep) + 1))]
+    y_bin_edges = [ystart + j * ystep for j in range((int((yend - ystart) / ystep) + 1))]
+        
+    if type(x_bin_edges[0]) == float:
+        x_bin_edges = np.round(x_bin_edges, decimals=xprecision)
+    if type(y_bin_edges[0]) == float:
+        y_bin_edges = np.round(y_bin_edges, decimals=yprecision)
+    
+    sum_of_z_in_each_x_y_bin = np.zeros(shape = (len(x_bin_edges) - 1, len(y_bin_edges) - 1))
+    num_points_in_each_x_y_bin = np.zeros_like(sum_of_z_in_each_x_y_bin)
+    
+    x_mapping = np.searchsorted(x_bin_edges, xdata) - 1
+    y_mapping = np.searchsorted(y_bin_edges, ydata) - 1
+    
+    for T in range(len(xdata)):
+        
+        x_bin = x_mapping[T]
+        y_bin = y_mapping[T]
+                
+        num_points_in_each_x_y_bin[x_bin, y_bin] += 1
+        sum_of_z_in_each_x_y_bin[x_bin, y_bin] += zdata[T]
+        
+    return sum_of_z_in_each_x_y_bin, num_points_in_each_x_y_bin
 

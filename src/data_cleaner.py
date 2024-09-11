@@ -8,18 +8,18 @@ import yaml
 import re
 
 
-def clean_solar_proton_events(satellite: str,
-                              make_dirs: bool = False,
-                              log_events: bool = False,
-                              event_log_file_dir: str = "./../compressed_data/POES/",
-                              dirty_data_dir: str = "./../compressed_data/POES/DIRTY/",
-                              clean_data_dir: str = "./../compressed_data/POES/CLEAN/",
-                              goes_data_dir: str = "./../raw_data/GOES/",
-                              debug_mode : bool = False) -> None:
+def clean_solar_proton_events_after_2012(satellite: str,
+                                         make_dirs: bool = False,
+                                         log_events: bool = False,
+                                         event_log_file_dir: str = "./../compressed_data/POES/",
+                                         dirty_data_dir: str = "./../compressed_data/POES/DIRTY/",
+                                         clean_data_dir: str = "./../compressed_data/POES/CLEAN/",
+                                         goes_data_dir: str = "./../raw_data/GOES/",
+                                         debug_mode : bool = False) -> None:
 
     event_log_file = os.path.join(os.path.abspath(event_log_file_dir), f"SOLAR_PROTON_EVENTS_REMOVED_{satellite}.yaml")
 
-    if satellite not in ["metop1", "metop2", "noaa15", "noaa16", "noaa17", "noaa18", "noaa19"]:
+    if satellite not in ["metop01", "metop02", "metop03", "noaa15", "noaa16", "noaa17", "noaa18", "noaa19"]:
 
         raise Exception("The compressor for satellites without SEM-2 Instrument Package is not yet implemented!")
 
@@ -40,7 +40,7 @@ def clean_solar_proton_events(satellite: str,
 
     for input_poes_file in input_poes_files_or_null:
 
-        re_match = re.search(pattern=r"([0-9]{6})", string=input_poes_file)
+        re_match = re.search(pattern=r"([0-9]{4})", string=input_poes_file)
 
         if not re_match:
             continue
@@ -48,7 +48,6 @@ def clean_solar_proton_events(satellite: str,
         date = re_match.group()
 
         _year = date[:4]
-        _month = date[4:]
 
         ##REMOVE THIS LATER WHEN WE GET MORE GOES DATA FILES FOR CLEANING##
         if(int(_year) >= 2020):
@@ -59,22 +58,30 @@ def clean_solar_proton_events(satellite: str,
         os_helper.verify_input_dir_exists(directory = goes_dir,
                                           hint = "GOES DATA DIR")
 
-        goes_file_name = f"g15_epead_cpflux_5m_{_year}{_month}*.nc"
-        goes_cdf_path_or_empty = glob.glob(goes_file_name, root_dir=goes_dir)
+        goes_file_glob = f"g15_epead_cpflux_5m_{_year}*.nc"
+        goes_file_names_or_empty = glob.glob(goes_file_glob, root_dir=goes_dir)
 
-        if len(goes_cdf_path_or_empty) == 0:
+        if len(goes_file_names_or_empty) == 0:
             if debug_mode:
-                print(f"GOES CDF PATH NOT FOUND FOR {_year}/{_month}. Therefore, no solar proton events can be cleaned!")
+                print(f"GOES CDF PATH NOT FOUND FOR {_year}. Therefore, no solar proton events can be cleaned!")
                 print("Continuing to next file...!")
             continue
+        
+        goes_epoch = np.zeros(shape=(0))
+        zpgt10_e = np.zeros(shape=(0))
+        zpgt10_w = np.zeros(shape=(0))
+        
+        for goes_file_name in goes_file_names_or_empty:
+            
+            goes_nc_path = os.path.join(goes_dir, goes_file_name)
 
-        goes_cdf_path = os.path.join(goes_dir, goes_cdf_path_or_empty[0])
-
-        goes = scipy.io.netcdf_file(goes_cdf_path, "r", mmap=False)
-        zpgt10_e = goes.variables["ZPGT10E"][:]
-        zpgt10_w = goes.variables["ZPGT10W"][:]
-        goes_time = Ticktock(goes.variables["time_tag"][:] / 1000, "UNX")
-        goes_epoch = goes_time.getUTC()
+            with scipy.io.netcdf_file(goes_nc_path, "r", mmap=False) as goes:
+                zpgt10_e = np.concatenate((zpgt10_e, goes.variables["ZPGT10E"][:]), axis = 0)
+                zpgt10_w = np.concatenate((zpgt10_w, goes.variables["ZPGT10W"][:]), axis = 0)
+                goes_time = Ticktock(goes.variables["time_tag"][:] / 1000, "UNX")
+                goes_epoch = np.concatenate((goes_epoch, goes_time.UTC), axis = 0)
+        
+        
 
         solar_p_flux = (zpgt10_e + zpgt10_w) / 2
         over_ten_mev = np.argwhere(solar_p_flux > 10)
@@ -122,48 +129,56 @@ def clean_solar_proton_events(satellite: str,
         print(f"Loading : {input_data_path}")
         input_data = np.load(input_data_path, allow_pickle=True)
 
+        #Time
         dirty_epoch = input_data["EPOCH"]
-        dirty_mep_ele_flux = input_data["MEP_ELE_FLUX"]
+        #Coordinates
+        dirty_alt = input_data["ALT"]
+        dirty_lat = input_data["LAT"]
+        dirty_lon = input_data["LON"]
         dirty_L = input_data["L"]
         dirty_mlt = input_data["MLT"]
-
+        #Flux
+        dirty_mep_ele_tel0_flux_e1 = input_data["MEP_ELE_TEL0_FLUX_E1"]
+        dirty_mep_ele_tel0_flux_e2 = input_data["MEP_ELE_TEL0_FLUX_E2"]
+        #Pitch angles
+        dirty_meped_alpha_0_sat = input_data["MEPED_ALPHA_0_SAT"]
+        
         input_data.close()
 
+        print(f"Cleaning : {input_data_path}")
         for start, end in zip(start_times, end_times):
 
             exclude = np.argwhere((start <= dirty_epoch) & (dirty_epoch <= end))
 
             dirty_epoch = np.delete(dirty_epoch, exclude, axis=0)
-            dirty_mep_ele_flux = np.delete(dirty_mep_ele_flux, exclude, axis=0)
+            dirty_alt = np.delete(dirty_alt, exclude, axis = 0)
+            dirty_lat = np.delete(dirty_lat, exclude, axis = 0)
+            dirty_lon = np.delete(dirty_lon, exclude, axis = 0)            
             dirty_L = np.delete(dirty_L, exclude, axis=0)
             dirty_mlt = np.delete(dirty_mlt, exclude, axis=0)
+            dirty_mep_ele_tel0_flux_e1 = np.delete(dirty_mep_ele_tel0_flux_e1, exclude, axis = 0)
+            dirty_mep_ele_tel0_flux_e2 = np.delete(dirty_mep_ele_tel0_flux_e2, exclude, axis = 0)
+            dirty_meped_alpha_0_sat = np.delete(dirty_meped_alpha_0_sat, exclude, axis = 0)
 
             print(f"Due to solar proton events, data was removed between: {start} and {end}!")
 
         #Dirty variables are cleaned at this point!
 
-        output_file_name = f"POES_{_year}{_month}_{satellite.lower()}_CLEAN.npz"
+        output_file_name = f"POES_{_year}_{satellite.lower()}_CLEAN.npz"
         output_data_path = os.path.join(output_poes_dir, output_file_name)
-
-        j_40 = dirty_mep_ele_flux[:, 0, 0]
-        j_130 = dirty_mep_ele_flux[:, 0, 1]
-
-        J = j_40 - j_130
-        # For some stupid reason this subtraction rarely creates negatives even though the channels are integral... :(
-        J[J < 0] = np.NaN
-
-        P = 100
-        naive_chorus_intensity = J / (P * ((dirty_L - 3)**2 + 0.03))
-        naive_chorus_amplitudes = np.sqrt(naive_chorus_intensity)
 
         print(f"Saving : {output_data_path}")
 
         np.savez_compressed(output_data_path,
                             EPOCH = dirty_epoch,
-                            MEP_ELE_FLUX = dirty_mep_ele_flux,
+                            ALT = dirty_alt,
+                            LAT = dirty_lat,
+                            LON = dirty_lon,
                             L = dirty_L,
                             MLT = dirty_mlt,
-                            NAIVE_CHORUS_AMPLITUDES = naive_chorus_amplitudes)
+                            MEP_ELE_TEL0_FLUX_E1 = dirty_mep_ele_tel0_flux_e1,
+                            MEP_ELE_TEL0_FLUX_E2 = dirty_mep_ele_tel0_flux_e2,
+                            MEPED_ALPHA_0_SAT = dirty_meped_alpha_0_sat)
 
 if __name__ == "__main__":
 
@@ -175,8 +190,8 @@ if __name__ == "__main__":
 
     for satellite in satellites:
 
-        clean_solar_proton_events(satellite=satellite,
-                                  make_dirs=True,
-                                  log_events=True,
-                                  dirty_data_dir = _dirty_data_dir,
-                                  debug_mode=True)
+        clean_solar_proton_events_after_2012(satellite=satellite,
+                                             make_dirs=True,
+                                             log_events=True,
+                                             dirty_data_dir = _dirty_data_dir,
+                                             debug_mode=True)

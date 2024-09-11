@@ -10,10 +10,11 @@ import os
 import os_helper
 import re
 import scipy
+from netCDF4 import Dataset
+import h5py
 import spacepy
 import matplotlib.pyplot as plt
 from matplotlib import colors
-import itertools
 
 
 def compress_month_rept_l2(satellite: str,
@@ -91,11 +92,11 @@ def compress_month_rept_l2(satellite: str,
         print(f"Compressed REPT Data for : {year}-{month}")
     
     
-def compress_month_poes(satellite: str,
-                        month: int, year: int,
-                        make_dirs: bool = False,
-                        raw_data_dir: str = "./../raw_data/",
-                        compressed_data_dir: str = "./../compressed_data/") -> None:
+def compress_year_poes_after_2012(satellite: str,
+                                  year: int,
+                                  make_dirs: bool = False,
+                                  raw_data_dir: str = "./../raw_data/",
+                                  compressed_data_dir: str = "./../compressed_data/") -> None:
 
     input_dir = os.path.join(os.path.abspath(raw_data_dir), "POES", satellite.lower())
     os_helper.verify_input_dir_exists(directory=input_dir,
@@ -106,69 +107,119 @@ def compress_month_poes(satellite: str,
     os_helper.verify_output_dir_exists(directory=output_dir,
                                        force_creation=make_dirs,
                                        hint=f"POES DIRTY DIR")
+    
+    output_file = os.path.join(output_dir, f"POES_{year}_{satellite.lower()}_DIRTY.npz")
 
-    _year = str(year)
-    if month < 10:
-        _month = f"0{month}"
-    else:
-        _month = str(month)
-
-    output_file = os.path.join(output_dir, f"POES_{_year}{_month}_{satellite.lower()}_DIRTY.npz")
-
-    if satellite not in ["metop1", "metop2", "noaa15", "noaa16", "noaa17", "noaa18", "noaa19"]:
+    if satellite not in ["metop01", "metop02", "metop03", "noaa15", "noaa16", "noaa17", "noaa18", "noaa19"]:
 
         raise Exception("The compressor for satellites without SEM-2 Instrument Package is not yet implemented!")
 
-    poes_cdf_files = glob.glob(pathname=f"{satellite.lower()}_poes-sem2_fluxes-2sec_{_year}{_month}*.cdf",
-                                root_dir=input_dir)
+    satID = satellite.lower().strip()
+    
+    poes_nc_files = glob.glob(pathname=f"poes_{satID[0]}{satID[-2:]}_{year}*.nc",
+                              root_dir=input_dir)
 
-    if len(poes_cdf_files) == 0:
-        print(f"No raw data files found to compress for: {_year}-{_month}")
+    if len(poes_nc_files) == 0:
+        print(f"No raw data files found to compress for: {year}")
         return
 
+    #Time
     epoch = np.zeros(shape=0, dtype=datetime.datetime)
-    mep_ele_flux = np.zeros(shape=(0, 2, 4), dtype=np.float32)
+    
+    #Coordinates
+    alt = np.zeros(shape=(0), dtype=np.float32)
+    lat = np.zeros(shape=(0), dtype=np.float32)
+    lon = np.zeros(shape=(0), dtype=np.float32)
     L = np.zeros(shape=0, dtype=np.float32)
     mlt = np.zeros(shape=0, dtype=np.float32)
+    
+    #Flux
+    mep_ele_tel0_flux_e1 = np.zeros(shape=(0), dtype=np.float32)
+    mep_ele_tel0_flux_e2 = np.zeros(shape=(0), dtype=np.float32)
+    
+    #Pitch Angles
+    meped_alpha_0_sat = np.zeros(shape=(0), dtype=np.float32)
 
-    for poes_cdf_file in sorted(poes_cdf_files):
+    for poes_nc_file in sorted(poes_nc_files):
 
-        print("Compressing file: ", poes_cdf_file)
+        print("Compressing file: ", poes_nc_file)
 
-        poes_cdf_path = os.path.join(input_dir, poes_cdf_file)
-        poes = pycdf.CDF(poes_cdf_path)
+        poes_nc_path = os.path.join(input_dir, poes_nc_file)
+        
+        with Dataset(poes_nc_path, "r") as poes:
+            
+            if len(poes.variables["msec"]) == 0:
+                continue
+            
+            #Time
+            years = np.ma.MaskedArray.filled(poes.variables["year"][...], fill_value = np.NaN).astype(int)
+            days = np.ma.MaskedArray.filled(poes.variables["day"][...], fill_value = np.NaN).astype(int)
+            msecs = np.ma.MaskedArray.filled(poes.variables["msec"][...], fill_value = np.NaN).astype(np.int64)
+            
+            valid_dates = np.isfinite(years) & np.isfinite(days) & np.isfinite(msecs)
+            years = years[valid_dates]
+            days = days[valid_dates]
+            msecs = msecs[valid_dates]
+                  
+            epoch_slice = np.array([datetime.datetime(year = years[i], month = 1, day = 1, hour = 0, minute = 0, second = 0, microsecond = 0) + datetime.timedelta(days = int(days[i]) - 1) + datetime.timedelta(milliseconds = int(msecs[i])) for i in range(len(years))])
+                   
+            #Coordinates
+            alt_slice = np.ma.MaskedArray.filled(poes.variables["alt"][...], fill_value = np.NaN)[valid_dates]
+            lat_slice = np.ma.MaskedArray.filled(poes.variables["lat"][...], fill_value = np.NaN)[valid_dates]
+            lon_slice = np.ma.MaskedArray.filled(poes.variables["lon"][...], fill_value = np.NaN)[valid_dates]
+            L_slice = np.ma.MaskedArray.filled(poes.variables["L_IGRF"][...], fill_value = np.NaN)[valid_dates]
+            mlt_slice = np.ma.MaskedArray.filled(poes.variables["MLT"][...], fill_value = np.NaN)[valid_dates]
+            
+            #Fluxes
+            mep_ele_tel0_flux_e1_slice = np.ma.MaskedArray.filled(poes.variables["mep_ele_tel0_flux_e1"][...], fill_value = np.NaN)[valid_dates]
+            mep_ele_tel0_flux_e2_slice = np.ma.MaskedArray.filled(poes.variables["mep_ele_tel0_flux_e2"][...], fill_value = np.NaN)[valid_dates]
 
-        if len(poes["Epoch"]) == 0:
-            continue
+            #Pitch Angle
+            meped_alpha_0_sat_slice = np.ma.MaskedArray.filled(poes.variables["meped_alpha_0_sat"][...], fill_value = np.NaN)[valid_dates]
+            
 
-        if (len(epoch) > 0) and (poes["Epoch"][0] < epoch[-1]):
-            raise Exception("Concatenating POES files would lead to out of order Epoch.")
+            if (0 < len(epoch)) and (epoch_slice[0] < epoch[-1]):
+                raise Exception("Concatenating POES files would lead to out of order Epoch.")
+            
+            epoch = np.concatenate((epoch, epoch_slice), axis = 0)
+            alt = np.concatenate((alt, alt_slice), axis = 0)
+            lat = np.concatenate((lat, lat_slice), axis = 0)
+            lon = np.concatenate((lon, lon_slice), axis = 0)
+            L = np.concatenate((L, L_slice), axis = 0)
+            mlt = np.concatenate((mlt, mlt_slice), axis = 0)
+            mep_ele_tel0_flux_e1 = np.concatenate((mep_ele_tel0_flux_e1, mep_ele_tel0_flux_e1_slice), axis = 0)
+            mep_ele_tel0_flux_e2 = np.concatenate((mep_ele_tel0_flux_e2, mep_ele_tel0_flux_e2_slice), axis = 0)
+            meped_alpha_0_sat = np.concatenate((meped_alpha_0_sat, meped_alpha_0_sat_slice), axis = 0)
 
-        epoch = np.concatenate((epoch, poes["Epoch"][...]), axis=0)
-        mep_ele_flux = np.concatenate((mep_ele_flux, poes["mep_ele_flux"][...]), axis=0)
-        L = np.concatenate((L, poes["l_igrf"][...]), axis=0)
-        mlt = np.concatenate((mlt, poes["mlt"][...]), axis=0)
+    np.savez_compressed(output_file,
+                        EPOCH = epoch,
+                        ALT = alt,
+                        LAT = lat,
+                        LON = lon,
+                        L = L,
+                        MLT = mlt,
+                        MEP_ELE_TEL0_FLUX_E1 = mep_ele_tel0_flux_e1,
+                        MEP_ELE_TEL0_FLUX_E2 = mep_ele_tel0_flux_e2,
+                        MEPED_ALPHA_0_SAT = meped_alpha_0_sat)
 
-    np.savez_compressed(output_file, EPOCH=epoch, MEP_ELE_FLUX=mep_ele_flux, L=L, MLT=mlt)
-
-    print(f"Compressed POES Data for {satellite} during: {_year}-{_month}.\nSaved to: {output_file}\n")
+    print(f"Compressed POES Data for {satellite} during: {year}.\nSaved to: {output_file}\n")
 
 
-def compress_poes(satellite: str,
-                  make_dirs: bool = False,
-                  raw_data_dir: str = "./../raw_data/",
-                  compressed_data_dir: str = "./../compressed_data/") -> None:
+def compress_poes_after_2012(satellite: str,
+                             make_dirs: bool = False,
+                             raw_data_dir: str = "./../raw_data/",
+                             compressed_data_dir: str = "./../compressed_data/") -> None:
 
     input_dir = os.path.join(os.path.abspath(raw_data_dir), "POES", satellite.lower())
 
     os_helper.verify_input_dir_exists(directory = input_dir,
                                       hint = f"RAW POES DIR: {satellite}")
 
-    possible_cdfs_to_compress = glob.glob("*.cdf", root_dir=input_dir)
+    possible_ncs_to_compress = glob.glob("*.nc", root_dir=input_dir)
 
-    year_month_pairs: set[tuple[int, int]] = set()
+    years_found: set[int] = set()
 
-    for filename in possible_cdfs_to_compress:
+    for filename in possible_ncs_to_compress:
 
         re_match = re.search(pattern=r"([0-9]{8})", string=filename)
 
@@ -177,15 +228,15 @@ def compress_poes(satellite: str,
 
         date = re_match.group()
 
-        year_month_pairs.add((int(date[:4]), int(date[4:6])))
+        years_found.add(int(date[:4]))
 
-    for _year, _month in sorted(list(year_month_pairs)):
+    for _year in sorted(list(years_found)):
 
-        compress_month_poes(satellite = satellite,
-                            month=_month, year = _year,
-                            make_dirs = make_dirs,
-                            raw_data_dir = raw_data_dir,
-                            compressed_data_dir = compressed_data_dir)
+        compress_year_poes_after_2012(satellite = satellite,
+                                      year = _year,
+                                      make_dirs = make_dirs,
+                                      raw_data_dir = raw_data_dir,
+                                      compressed_data_dir = compressed_data_dir)
         
 
 def calculate_and_compress_psd(satellite: str,
@@ -549,7 +600,10 @@ if __name__ == "__main__":
         
     #calculate_and_compress_psd(satellite="B", field_model=model.TS04D, month=3, year=2015, make_dirs=True, debug_mode=True, verbose=False)
     
-    compress_emfisis_wna_survey_and_diagonal_spectral_matrix(satellite = "A",
-                                                             month = 1,
-                                                             year = 2013,
-                                                             make_dirs = True)
+    #compress_emfisis_wna_survey_and_diagonal_spectral_matrix(satellite = "A",
+    #                                                         month = 1,
+    #                                                         year = 2013,
+    #                                                         make_dirs = True)
+    for sat in ["noaa17", "noaa18", "noaa19"]:
+
+        compress_poes_after_2012(satellite = sat, make_dirs = True)

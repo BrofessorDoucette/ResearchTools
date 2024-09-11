@@ -1,5 +1,3 @@
-from data_references import REPTDataRefContainer
-from data_references import POESDataRefContainer
 from dateutil import rrule
 import datetime
 import numpy as np
@@ -10,6 +8,241 @@ import os_helper
 from spacepy import pycdf
 from field_models import model
 import glob
+import global_configuration
+import date_helper
+import cdflib
+from netCDF4 import Dataset
+import h5py
+import warnings
+
+def get_file_names_between_start_and_end(start : datetime.datetime,
+                                         end : datetime.datetime,
+                                         file_glob: str = "",
+                                         input_dir_structure : str = "",
+                                         debug : bool = False,
+                                         verbose : bool = False) -> list[str]:
+    
+    #Maybe this code should be adapted in the future to work for more cases, but currently it works for all needed instruments as of 08/29/2024
+    
+    if not file_glob:
+        raise Exception("Tried to load cdfs, but no file glob was given. I have no idea what the file names look like!")
+    
+    if not input_dir_structure:
+        raise Exception("Tried to load cdfs but no input_dir was given. I have no idea where to look for the requested file names!")
+    
+    if debug:
+        print(f"Start date: {start}")
+        print(f"End date: {end}")
+        print(f"Unprocessed file_glob : {file_glob}")
+        print(f"Unprocessed input_dir_structure : {input_dir_structure}")
+
+    paths = []
+    
+    if ("{$DAY}" in file_glob) or ("{$DAY}" in input_dir_structure):
+        
+        for dt in rrule.rrule(freq = rrule.DAILY, dtstart = start, until = end):
+            
+            formatted_file_glob = global_configuration.replace_all_keys_in_string_with_values(file_glob, {"{$YEAR}" : dt.year,
+                                                                                                "{$MONTH}" : date_helper.month_str_from_int(dt.month),
+                                                                                                "{$DAY}" : date_helper.day_str_from_int(dt.day)})
+            
+            input_dir = global_configuration.replace_all_keys_in_string_with_values(input_dir_structure, {"{$YEAR}" : dt.year,
+                                                                                                          "{$MONTH}" : date_helper.month_str_from_int(dt.month),
+                                                                                                          "{$DAY}" : date_helper.day_str_from_int(dt.day)})
+            if debug:
+                print(formatted_file_glob, input_dir)
+            
+            list_of_file_names_or_empty = glob.glob(pathname = formatted_file_glob, root_dir = input_dir)
+            
+            if len(list_of_file_names_or_empty) > 0:
+                
+                sorted_list_of_file_names = sorted(list_of_file_names_or_empty)
+                sorted_list_of_paths = [os.path.join(os.path.abspath(input_dir), name) for name in sorted_list_of_file_names]
+                paths.extend(sorted_list_of_paths)
+                
+            else:
+                if debug and verbose:
+                    warnings.warn(f"No file on disk matches the following glob: {os.path.join(os.path.abspath(input_dir), formatted_file_glob)}")
+
+                    
+    elif ("{$MONTH}" in file_glob) or ("{$MONTH}" in input_dir_structure):
+                
+        for dt in rrule.rrule(freq = rrule.MONTHLY, dtstart = datetime.datetime(year = start.year, month=start.month, day=1), until = end, bymonthday=(1)):
+            
+            formatted_file_glob = global_configuration.replace_all_keys_in_string_with_values(file_glob, {"{$YEAR}" : dt.year,
+                                                                                                "{$MONTH}" : date_helper.month_str_from_int(dt.month),
+                                                                                                "{$DAY}" : date_helper.day_str_from_int(dt.day)})
+            
+            input_dir = global_configuration.replace_all_keys_in_string_with_values(input_dir_structure, {"{$YEAR}" : dt.year,
+                                                                                                          "{$MONTH}" : date_helper.month_str_from_int(dt.month),
+                                                                                                          "{$DAY}" : date_helper.day_str_from_int(dt.day)})
+            if debug:
+                print(formatted_file_glob, input_dir)
+                
+            list_of_file_names_or_empty = glob.glob(pathname = formatted_file_glob, root_dir = input_dir)
+            
+            if len(list_of_file_names_or_empty) > 0:
+                
+                sorted_list_of_file_names = sorted(list_of_file_names_or_empty)
+                sorted_list_of_paths = [os.path.join(os.path.abspath(input_dir), name) for name in sorted_list_of_file_names]
+                paths.extend(sorted_list_of_paths)
+            else:
+                if debug and verbose:
+                    warnings.warn(f"No file on disk matches the following glob: {os.path.join(os.path.abspath(input_dir), formatted_file_glob)}")
+                    
+    elif ("{$YEAR}" in file_glob) or ("{$YEAR}" in input_dir_structure):
+
+        for dt in rrule.rrule(freq = rrule.YEARLY, dtstart = datetime.datetime(year = start.year, month=1, day=1), until = end, byyearday=(1)):
+                        
+            formatted_file_glob = global_configuration.replace_all_keys_in_string_with_values(file_glob, {"{$YEAR}" : dt.year,
+                                                                                                "{$MONTH}" : date_helper.month_str_from_int(dt.month),
+                                                                                                "{$DAY}" : date_helper.day_str_from_int(dt.day)})
+            
+            input_dir = global_configuration.replace_all_keys_in_string_with_values(input_dir_structure, {"{$YEAR}" : dt.year,
+                                                                                                          "{$MONTH}" : date_helper.month_str_from_int(dt.month),
+                                                                                                          "{$DAY}" : date_helper.day_str_from_int(dt.day)})
+            if debug:
+                print(formatted_file_glob, input_dir)
+                
+            list_of_file_names_or_empty = glob.glob(pathname = formatted_file_glob, root_dir = input_dir)
+            
+            if len(list_of_file_names_or_empty) > 0:
+                
+                sorted_list_of_file_names = sorted(list_of_file_names_or_empty)
+                sorted_list_of_paths = [os.path.join(os.path.abspath(input_dir), name) for name in sorted_list_of_file_names]
+                paths.extend(sorted_list_of_paths)
+            else:
+                if debug and verbose:
+                    warnings.warn(f"No file on disk matches the following glob: {os.path.join(os.path.abspath(input_dir), formatted_file_glob)}")
+    else:
+        
+        raise Exception("Neither the file_glob nor the input_dir_structure had {$YEAR} or {$MONTH} or {$DAY} in it. So how can I tell what the ordering of the files should be?")
+    
+    return paths
+    
+
+def load_data_files(paths : list[str],
+                    extension : str,
+                    variables : list[str],
+                    variable_config : dict,
+                    debug : bool = False) -> dict:
+    
+    if debug:
+        print(f"Paths: {paths}")
+        print(f"Variables requested: {variables}")
+        print(f"Variable config: {variable_config}")
+    
+    #Concatenating all the arrays at once is much faster than copying every time?
+    unconcatenated_arrays = {}
+    
+    for var in variables:
+        unconcatenated_arrays[var] = []
+    
+    if extension == ".cdf":
+        
+        for i, path in enumerate(paths):
+        
+            with cdflib.CDF(path = path) as cdf_file:
+                
+                for var in variables:
+                    
+                    if (i == 0) and (variable_config[var] is None):
+                        unconcatenated_arrays[var].append(cdf_file.varget(variable=var, startrec=0))
+                    elif (variable_config is not None):
+                        unconcatenated_arrays[var].append(cdf_file.varget(variable=var, startrec=0))
+    
+    if extension == ".h5":
+        
+        for i, path in enumerate(paths):
+            
+            with h5py.File(path, "r") as h5_file:
+                
+                for var in variables:
+
+                    if (i == 0) and (variable_config[var] is None):
+                        unconcatenated_arrays[var].append(h5_file[var][...])
+                    elif (variable_config is not None):
+                        unconcatenated_arrays[var].append(h5_file[var][...])
+    
+    if extension == ".nc":
+        
+        for i, path in enumerate(paths):
+            
+            with Dataset(path, "r") as nc_file:
+                
+                for var in variables:
+
+                    if (i == 0) and (variable_config[var] is None):
+                        unconcatenated_arrays[var].append(np.ma.MaskedArray.filled(nc_file.variables[var][...], fill_value = np.NaN))
+                    elif (variable_config is not None):
+                        unconcatenated_arrays[var].append(np.ma.MaskedArray.filled(nc_file.variables[var][...], fill_value = np.NaN))
+                
+    refs = {}
+    
+    for var in variables:
+        refs[var] = np.concatenate(unconcatenated_arrays[var], axis = variable_config[var])
+    
+    return refs
+
+def load_raw_data_from_config(id : list[str], 
+                              start : datetime.datetime,
+                              end : datetime.datetime,
+                              variables : list[str] = [],
+                              satellite: str = "",
+                              config_path : str = "",
+                              debug : bool = False,
+                              verbose: bool = False) -> dict:
+    
+    '''If you don't specify any variables here, all the variables in the config will be loaded... Otherwise an error will be thrown.'''
+    
+    config, config_path = global_configuration.Config(config_path).load()
+    
+    id_config = config
+    for level in id:
+        id_config = id_config[level]
+    
+    if os.environ.get("RESEARCH_RAW_DATA_DIR"):
+        input_dir_structure = os.path.join(os.environ["RESEARCH_RAW_DATA_DIR"], *id)
+    else:
+        input_dir_structure = os.path.join(os.path.abspath(os.path.dirname(config_path)), *id)
+    
+    if "subdir" in id_config:
+        input_dir_structure = os.path.join(input_dir_structure, *id_config["subdir"].split("/"))
+    
+    
+    if "file_glob" not in id_config.keys():
+        raise Exception("Tried to load an ID with no file_glob set in the global config. I have no idea what the filename looks like or what type it is!")
+
+    file_name, file_extension = os.path.splitext(id_config["file_glob"])
+    
+    #More functionality can be added here before the loading routines if absolutely needed
+    if "{$SATELLITE}" in file_name or "{$SATELLITE}" in input_dir_structure:
+        if not satellite:
+            raise Exception("File name or input_dir for this ID requires a satellite but no satellite was specified!")
+        else:
+            file_name = global_configuration.replace_all_keys_in_string_with_values(file_name, {"{$SATELLITE}": satellite})
+            input_dir_structure = global_configuration.replace_all_keys_in_string_with_values(input_dir_structure, {"{$SATELLITE}": satellite})
+    #-------------------------------------------------------------------------------
+    
+    if "variables" in id_config.keys():  
+        if not variables:
+            variables = list(id_config["variables"].keys())
+    else:
+        raise Exception("The config has no variables specified!")
+    
+    
+    paths_of_files_within_timeperiod = get_file_names_between_start_and_end(start = start,
+                                                                            end = end,
+                                                                            file_glob = (file_name + file_extension),
+                                                                            input_dir_structure = input_dir_structure,
+                                                                            debug = debug,
+                                                                            verbose = verbose)
+    
+    return load_data_files(paths = paths_of_files_within_timeperiod,
+                           extension = file_extension,
+                           variables = variables, 
+                           variable_config = id_config["variables"],
+                           debug = debug)
 
 def load_omni_data_1hour_res(start: datetime.datetime,
                              end: datetime.datetime,
@@ -124,7 +357,7 @@ def load_omni_data_1min_res(start: datetime.datetime,
               
 def load_compressed_rept_data(satellite: str,
                               start: datetime.datetime, end: datetime.datetime,
-                              compressed_data_dir: str = "./../compressed_data/") -> REPTDataRefContainer:
+                              compressed_data_dir: str = "./../compressed_data/") -> dict:
     
     rept_data_dir = os.path.join(os.path.abspath(compressed_data_dir),  "RBSP", "REPT")
     
@@ -190,30 +423,38 @@ def load_compressed_rept_data(satellite: str,
 
 def load_compressed_poes_data(satellite: str,
                               start: datetime.datetime, end: datetime.datetime,
-                              poes_dir: str = "./../compressed_data/POES/CLEAN/") -> POESDataRefContainer:
-
+                              poes_dir: str = "./../compressed_data/POES/CLEAN/") -> dict:
+    
+    input_data_dir = os.path.join(os.path.abspath(poes_dir), f"{satellite}")
+    
+    if not os_helper.verify_input_dir_exists(directory = input_data_dir, hint = "POES DATA DIR", raise_exception = False):
+        
+        print(f"Unable to find any compressed POES data for: {satellite}")
+    
+    #Time
     epoch = np.zeros(shape=0, dtype=datetime.datetime)
-    mep_ele_flux = np.zeros(shape=(0, 2, 4), dtype=np.float32)
+    
+    #Coordinates
+    alt = np.zeros(shape=(0), dtype=np.float32)
+    lat = np.zeros(shape=(0), dtype=np.float32)
+    lon = np.zeros(shape=(0), dtype=np.float32)
     L = np.zeros(shape=0, dtype=np.float32)
     mlt = np.zeros(shape=0, dtype=np.float32)
-    naive_chorus_amplitudes = np.zeros(shape=0, dtype=np.float32)
+    
+    #Flux
+    mep_ele_tel0_flux_e1 = np.zeros(shape=(0), dtype=np.float32)
+    mep_ele_tel0_flux_e2 = np.zeros(shape=(0), dtype=np.float32)
+    
+    #Pitch Angles
+    meped_alpha_0_sat = np.zeros(shape=(0), dtype=np.float32)
 
-    for i, dt in enumerate(rrule.rrule(rrule.MONTHLY, dtstart=start, until=end)):
+    
+    for dt in rrule.rrule(rrule.YEARLY, dtstart=datetime.datetime(year = start.year, month=1, day=1), until = end, byyearday=(1)):
+        
+        year = dt.year
 
-        _year = str(dt.year)
-        _month = str(dt.month)
-
-        if len(_month) < 2:
-            _month = f"0{_month}"
-
-
-        poes_data_dir = os.path.join(os.path.abspath(poes_dir), f"{satellite}")
-
-        os_helper.verify_input_dir_exists(directory=poes_data_dir,
-                                          hint="POES DATA DIR")
-
-        poes_file_name = f"POES_{_year}{_month}_{satellite.lower()}_CLEAN.npz"
-        poes_data_path = os.path.join(poes_data_dir, poes_file_name)
+        poes_file_name = f"POES_{year}_{satellite.lower()}_CLEAN.npz"
+        poes_data_path = os.path.join(input_data_dir, poes_file_name)
 
         if not os.path.exists(poes_data_path):
             print(f"\nData file not found: {poes_data_path}, continuing...!")
@@ -222,22 +463,58 @@ def load_compressed_poes_data(satellite: str,
         print(f"Loading : {poes_file_name}")
         data = np.load(poes_data_path, allow_pickle=True)
 
+        #Time
         epoch = np.concatenate((epoch, data["EPOCH"]), axis=0)
-        mep_ele_flux = np.concatenate((mep_ele_flux, data["MEP_ELE_FLUX"]), axis=0)
-        L = np.concatenate((L, data["L"]), axis=0)
-        mlt = np.concatenate((mlt, data["MLT"]), axis=0)
-        naive_chorus_amplitudes = np.concatenate((naive_chorus_amplitudes, data["NAIVE_CHORUS_AMPLITUDES"]), axis=0)
+        
+        #Coordinates
+        alt = np.concatenate((alt, data["ALT"]), axis = 0)
+        lat = np.concatenate((lat, data["LAT"]), axis = 0)
+        lon = np.concatenate((lon, data["LON"]), axis = 0)
+        L = np.concatenate((L, data["L"]), axis = 0)
+        mlt = np.concatenate((mlt, data["MLT"]), axis = 0)
+        
+        #Flux
+        mep_ele_tel0_flux_e1 = np.concatenate((mep_ele_tel0_flux_e1, data["MEP_ELE_TEL0_FLUX_E1"]), axis = 0)
+        mep_ele_tel0_flux_e2 = np.concatenate((mep_ele_tel0_flux_e2, data["MEP_ELE_TEL0_FLUX_E2"]), axis = 0)
+        
+        #Pitch Angles
+        meped_alpha_0_sat = np.concatenate((meped_alpha_0_sat, data["MEPED_ALPHA_0_SAT"]))
 
         data.close()
 
     satisfies_date_extent = (start < epoch) & (epoch < end)
+    #Time
     epoch = epoch[satisfies_date_extent]
-    mep_ele_flux = mep_ele_flux[satisfies_date_extent, :, :]
+    
+    #Coordinates
+    alt = alt[satisfies_date_extent]
+    lat = lat[satisfies_date_extent]
+    lon = lon[satisfies_date_extent]
     L = L[satisfies_date_extent]
     mlt = mlt[satisfies_date_extent]
-    naive_chorus_amplitudes = naive_chorus_amplitudes[satisfies_date_extent]
+    
+    #Flux
+    mep_ele_tel0_flux_e1 = mep_ele_tel0_flux_e1[satisfies_date_extent]
+    mep_ele_tel0_flux_e2 = mep_ele_tel0_flux_e2[satisfies_date_extent]
+    
+    #Pitch Angles
+    meped_alpha_0_sat = meped_alpha_0_sat[satisfies_date_extent]
+    
+    refs = {
+        
+        "EPOCH" : epoch,
+        "ALT" : alt,
+        "LAT" : lat,
+        "LON" : lon,
+        "L" : L,
+        "MLT" : mlt,
+        "MEP_ELE_TEL0_FLUX_E1" : mep_ele_tel0_flux_e1,
+        "MEP_ELE_TEL0_FLUX_E2" : mep_ele_tel0_flux_e2,
+        "MEPED_ALPHA_0_SAT" : meped_alpha_0_sat
+        
+    }
 
-    return POESDataRefContainer(epoch, mep_ele_flux, L, mlt, naive_chorus_amplitudes, satellite)
+    return refs
 
 def load_psd(satellite: str,
              field_model: model,

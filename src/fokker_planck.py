@@ -94,32 +94,36 @@ def calculate_diffusion_coefficients(L, Kp, type : DIFFUSION_COEFFICIENT_TYPE_1D
     return None, None
     
     
-def fokker_planck_1D_simulation(iterations_between_saves, dt, dL, L, f, min_BCs, max_BCs, D_ll, dD_ll_dL, numerical_stability_scaling_factor = 1e7, tau = None):
+def fokker_planck_1D_simulation(sim_JD_grid, averaging_dt, sim_dt, dL, initial_L, initial_f, min_BCs, max_BCs, D_ll, dD_ll_dL, numerical_stability_scaling_factor = 1e7):
     
     '''Simulates the 1-D fokker-planck equation. See the notebook simulating_radial_diffusion.ipynb for an example of how to use this.'''
 
     assert(len(min_BCs) == len(max_BCs))
+        
+    t_bin_edges = np.arange(start = sim_JD_grid[0], stop = sim_JD_grid[-1] + averaging_dt, step = averaging_dt)
     
+    num_t_bins = len(t_bin_edges[:-1])
     #We scale these for numerical stability reasons.. Otherwise the numbers are all really small.
-    f = np.copy(f) * numerical_stability_scaling_factor
+    initial_f = np.copy(initial_f) * numerical_stability_scaling_factor
     min_BCs = min_BCs * numerical_stability_scaling_factor
     max_BCs = max_BCs * numerical_stability_scaling_factor
     
-    L = np.copy(L) 
-    f_S = np.zeros(shape=(0, len(L)))
-    T_S = []
+    initial_L = np.copy(initial_L) 
+    f_S = np.zeros(shape=(num_t_bins, len(initial_L)))
+    N_S = np.zeros(shape=(num_t_bins))
+    
     for T in range(len(min_BCs) - 1):
         
-        df_dL = (f[2:] - f[0:-2]) / (2 * dL) #Central Differation Approx
-        d2f_dL2 = (f[2:] - 2 * f[1:-1] + f[0:-2]) / (dL**2)
+        df_dL = (initial_f[2:] - initial_f[0:-2]) / (2 * dL) #Central Differation Approx
+        d2f_dL2 = (initial_f[2:] - 2 * initial_f[1:-1] + initial_f[0:-2]) / (dL**2)
         
-        df_dt = (dD_ll_dL[T, 1:-1] - (2.0 / L[1:-1]) * D_ll[T, 1:-1]) * df_dL + D_ll[T, 1:-1] * d2f_dL2
-        f[1:-1] += df_dt * dt
-        f[0] = min_BCs[T + 1]
-        f[-1] = max_BCs[T + 1]
+        df_dt = (dD_ll_dL[T, 1:-1] - (2.0 / initial_L[1:-1]) * D_ll[T, 1:-1]) * df_dL + D_ll[T, 1:-1] * d2f_dL2
+        initial_f[1:-1] += df_dt * sim_dt
+        initial_f[0] = min_BCs[T + 1]
+        initial_f[-1] = max_BCs[T + 1]
         
-        if (T % iterations_between_saves == 0) or (T == len(min_BCs) - 2):
-            f_S = np.vstack((f_S, f / numerical_stability_scaling_factor))
-            T_S.append(T)
+        T_bin = int((sim_dt * T) / averaging_dt)
+        f_S[T_bin, :] += initial_f / numerical_stability_scaling_factor
+        N_S[T_bin] += 1
     
-    return L, f_S, np.asarray(T_S)
+    return initial_L, f_S / np.expand_dims(N_S, axis=1), t_bin_edges[:-1]

@@ -1,4 +1,5 @@
-import glob
+#You need wget installed to use the methods in this file.
+
 import subprocess
 import datetime
 import os
@@ -6,32 +7,34 @@ import os_helper
 from dateutil import rrule
 from field_models import model
 import calendar
-import re
+import global_configuration
+import date_helper
 
 
-def wget_r_directory(folder_url: str, savdir: str, file_glob = "*.cdf") -> None:
+def wget_r_directory(url: str, savdir: str, file_glob = "*.cdf") -> None:
 
     '''By default scrapes '*.cdf' for to support legacy code here. Probably should set file_glob to something more specific.'''
 
-    subprocess.call(args=["wget",
+    subprocess.run(args=["wget",
                           "-4",
                           "-e robots=off",
-                          "--retry-connrefused",
                           "--no-check-certificate",
-                          "-nc",
-                          "-c",
+                          "--retry-connrefused",
+                          "-t",
+                          "0",
+                          "-N",
+                          "--no-if-modified-since",
                           "-r",
                           "-nd",
                           "--no-parent",
                           "-A",
                           file_glob,
-                          folder_url,
+                          url,
                           "-P",
                           savdir],
                     shell=False)
 
-
-def wget_file(filename: str, folder_url: str, savdir: str) -> None:
+def wget_file(filename: str, url: str, savdir: str) -> None:
     
     subprocess.call(args=["wget",
                           "--recursive",
@@ -43,169 +46,95 @@ def wget_file(filename: str, folder_url: str, savdir: str) -> None:
                           "--no-parent",
                           "-A",
                           filename,
-                          folder_url],
+                          url],
                     shell=False,
                     stdout=subprocess.DEVNULL,
                     stderr=subprocess.DEVNULL,
                     cwd=savdir)
 
 
-def download_year_omni_1min_res(year: int, 
-                                make_dirs: bool = False, 
-                                raw_data_dir: str = "./../raw_data/") -> None:
-
-    output_dir = os.path.join(raw_data_dir, "GOES", "_1_min_res",  str(year))
-
-    os_helper.verify_output_dir_exists(directory = output_dir, force_creation = make_dirs, hint="RAW OMNI DIR")
-
-    start = datetime.datetime(year = year, month = 1, day = 1)
-    end = datetime.datetime(year = year + 1, month = 1, day = 1)
-
-    for i, dt in enumerate(rrule.rrule(rrule.MONTHLY, dtstart=start, until = end - datetime.timedelta(days=1))):
-
-        _year = str(dt.year)
-        _month = str(dt.month)
-
-        if len(_month) < 2:
-            _month = f"0{_month}"
-
-        wget_file(filename = f"omni_hro2_1min_{_year}{_month}*.cdf",
-                  folder_url = f"https://spdf.gsfc.nasa.gov/pub/data/omni/omni_cdaweb/hro2_1min/{_year}/",
-                  savdir = output_dir)
+def download_from_global_config(id : list[str], 
+                                replace : dict = None, 
+                                config_path : str = "", 
+                                make_dirs : bool = False,
+                                debug : bool = False):
+    '''Downloads files using the global configuration. 
+       Instead of having a method for every single variation of download we want, we can use a config and replace substrings.
+       This just reduces the amount of code that needs to be written and maintained substantially, in exchange for possible configuration problems.'''
+       
+    config, config_path = global_configuration.Config(config_path).load()
+    
+    id_config = config
+    for level in id:
+        id_config = id_config[level]
+    
+    if "file_glob" not in id_config.keys():
+        raise Exception("Tried to download an ID with no file_glob set in the global config. I have no idea what the filename looks like or what type it is!")
+    
+    if "url" not in id_config.keys():
+        raise Exception("Tried to download an ID with no url set in the global config. I have no idea what url to look for the file_glob within!!")
+    
+    file_glob = global_configuration.replace_all_keys_in_string_with_values(id_config["file_glob"], map = replace)
+    url = global_configuration.replace_all_keys_in_string_with_values(id_config["url"], map = replace)
+    
+    if debug:
+        print(f"RAW FILE_GLOB : {id_config["file_glob"]}")
+        print(f"RAW URL : {id_config["url"]}")
+        print(f"Processed FILE_GLOB : {file_glob}")
+        print(f"Procesed URL : {url}")
+            
+    if os.environ.get("RESEARCH_RAW_DATA_DIR"):
+        output_dir = os.path.join(os.environ["RESEARCH_RAW_DATA_DIR"], *id)
+    else:
+        output_dir = os.path.join(os.path.abspath(os.path.dirname(config_path)), *id)
+    
+    if "subdir" in id_config:
+        subdir = global_configuration.replace_all_keys_in_string_with_values(id_config["subdir"], map = replace)
+        output_dir = os.path.join(output_dir, *subdir.split("/"))
         
-        print(f"Downloaded OMNI data for : {dt}")
-
-
-def download_year_omni_1hour_res(year: int,
-                                 make_dirs: bool = False,
-                                 raw_data_dir: str = "./../raw_data/") -> None:
-      
-    
-    output_dir = os.path.join(os.path.abspath(raw_data_dir), "OMNI", "_1_hour_res")
-    
+            
     os_helper.verify_output_dir_exists(directory = output_dir,
                                        force_creation = make_dirs,
-                                       hint = "OMNI DATA DIR")
-
-    wget_r_directory(folder_url = f"https://spdf.gsfc.nasa.gov/pub/data/omni/omni_cdaweb/hourly/{year}/",
+                                       hint = f"OUTPUT DIR for: {id}")
+    
+    if debug:
+        print(f"OUTPUT DIR: {output_dir}")
+    
+    wget_r_directory(file_glob = file_glob,
+                     url = url,
                      savdir = output_dir)
 
 
-def download_month_rept_l2(satellite: str,
-                           month: int, year: int,
-                           make_dirs: bool = False,
-                           raw_data_dir: str = "./../raw_data/") -> None:
-    if month < 10:
-        output_dir = os.path.join(os.path.abspath(raw_data_dir), "RBSP", "REPT", f"{year}/0{month}")
+#The following methods are essentially just examples of how to use the global config to download files
 
-    else:
-        output_dir = os.path.join(os.path.abspath(raw_data_dir), "RBSP", "REPT", f"{year}/{month}")
-
-    os_helper.verify_output_dir_exists(directory = output_dir, force_creation=make_dirs, hint="RAW REPT DIR")
+def download_year_omni_one_min_resolution(year: int, 
+                                          make_dirs: bool = False,
+                                          config_path = "",
+                                          debug = False) -> None:
     
-    start = datetime.datetime(year = year, month = month, day = 1)
-
-    if month == 12:
-        end = datetime.datetime(year = year + 1, month = 1, day = 1)
-    else:
-        end = datetime.datetime(year = year, month = month + 1, day = 1)
-
-    curr = start
-    while curr < end:
-
-        _year = str(curr.year)
-        _month = str(curr.month)
-        _day = str(curr.day)
-
-        if len(_month) < 2:
-            _month = f"0{_month}"
-        if len(_day) < 2:
-            _day = f"0{_day}"
-
-        wget_file(filename = f"rbsp{satellite.lower()}_rel03_ect-rept-sci-l2_{_year}{_month}{_day}*.cdf",
-                  folder_url = f"https://spdf.gsfc.nasa.gov/pub/data/rbsp/rbsp{satellite.lower()}/l2/ect/rept/sectors/rel03/{_year}/",
-                  savdir = output_dir)
-        
-        print(f"Downloaded REPT Data for : {curr}")
-        curr += datetime.timedelta(days=1)
-
-
-def download_month_goes_netcdf(month: int, year: int,
-                               make_dirs: bool = False,
-                               raw_data_dir: str = "./../raw_data/") -> None:
-
-    output_dir = os.path.join(raw_data_dir, "GOES", f"{year}/")
-
-    os_helper.verify_output_dir_exists(directory = output_dir, force_creation = make_dirs, hint="RAW GOES DIR")
-
-    daterange = calendar.monthrange(year, month)
-
-    _year = str(year)
-    _month = str(month)
-
-    if len(_month) < 2:
-        _month = f"0{_month}"
-
-    _lastday = str(daterange[-1])
-
-    wget_file(filename = f"g15_epead_cpflux_5m_{_year}{_month}01_{_year}{_month}{_lastday}.nc",
-              folder_url = f"https://www.ncei.noaa.gov/data/goes-space-environment-monitor/access/avg/{_year}/{_month}/goes15/netcdf/",
-              savdir = output_dir)
-
-    print(f"Downloaded GOES Data for : {datetime.datetime(year=year, month=month, day=1)}")
-
-
-def download_year_goes_netcdf(year: int, 
-                              make_dirs: bool = False, 
-                              raw_data_dir: str = "./../raw_data/") -> None:
-
-    start = datetime.datetime(year = year, month = 1, day = 1)
-    end = datetime.datetime(year = year + 1, month = 1, day = 1)
-
-    for i, dt in enumerate(rrule.rrule(rrule.MONTHLY, dtstart=start, until = end - datetime.timedelta(days=1))):
-
-        download_month_goes_netcdf(month=dt.month, year=dt.year, make_dirs = make_dirs, raw_data_dir=raw_data_dir)
-
-
-def download_poes_after_2012(satellite: str,
-                             make_dirs: bool = False,
-                             raw_data_dir: str = "./../raw_data/") -> None:
-
-    output_dir = os.path.join(os.path.abspath(raw_data_dir), "POES", satellite.lower())
-
-    os_helper.verify_output_dir_exists(directory=output_dir,
-                                       force_creation=make_dirs,
-                                       hint="RAW POES DIR")
-
-    wget_r_directory(folder_url=f"https://spdf.gsfc.nasa.gov/pub/data/noaa/{satellite.lower()}/sem2_fluxes-2sec/",
-                     savdir=output_dir)
-
-def download_poes_1998_to_2014(year: int,
-                               satellite: str,
-                               make_dirs: bool = False,
-                               raw_data_dir: str = "./../raw_data/") -> None:
+    '''Example : download_year_omni_one_min_resolution(year = 2013, make_dirs = True)'''
     
-    output_dir = os.path.join(os.path.abspath(raw_data_dir), "POES", satellite.lower())
-    
-    os_helper.verify_output_dir_exists(directory = output_dir,
-                                       force_creation = make_dirs, 
-                                       hint = "RAW POES DIR")
-    
-    wget_r_directory(folder_url = f"https://www.ncei.noaa.gov/data/poes-metop-space-environment-monitor/access/l2/v01r00/cdf/{year}/{satellite.lower()}/",
-                     savdir = output_dir)
+    download_from_global_config(id = ["OMNI", "ONE_MIN_RESOLUTION"], 
+                                replace = {"{$YEAR}" : str(year),
+                                           "{$MONTH}" : ""},
+                                config_path = config_path,
+                                make_dirs = make_dirs,
+                                debug = debug)
 
-def download_raster_poes_1998_to_2014(make_dirs = False,
-                                      raw_data_dir : str = "./../raw_data/"):
+
+def download_year_omni_one_hour_resolution(year: int, 
+                                           make_dirs: bool = False,
+                                           config_path = "",
+                                           debug = False) -> None:
     
-     
-    for _satellite in ["noaa15", "noaa16", "noaa17", "noaa18", "noaa19", "metop01", "metop02", "metop03"]:
-        
-        for _year in range(1998, 2015):
-             
-            download_poes_1998_to_2014(year = _year,
-                                       satellite = _satellite,
-                                       make_dirs = make_dirs,
-                                       raw_data_dir = raw_data_dir)
+    '''Example: download_year_omni_one_hour_resolution(year = 2013, make_dirs = True)'''
+
+    
+    download_from_global_config(id = ["OMNI", "ONE_HOUR_RESOLUTION"], 
+                                replace = {"{$YEAR}" : str(year)},
+                                config_path = config_path,
+                                make_dirs = make_dirs,
+                                debug = debug)
 
 
 def download_rbsp_emfisis_wna_survey_L4(year: int,
@@ -219,7 +148,7 @@ def download_rbsp_emfisis_wna_survey_L4(year: int,
                                        force_creation = make_dirs,
                                        hint = "RAW EMFISIS WNA SURVEY L4 DIR")
         
-    wget_r_directory(folder_url = f"https://emfisis.physics.uiowa.edu/Flight/RBSP-{satellite.upper()}/L4/{year}",
+    wget_r_directory(url = f"https://emfisis.physics.uiowa.edu/Flight/RBSP-{satellite.upper()}/L4/{year}",
                      file_glob = f"rbsp-{satellite.lower()}_wna-survey_emfisis-L4_{year}*v2*.cdf",
                      savdir = output_dir)
     
@@ -234,7 +163,7 @@ def download_rbsp_emfisis_diagonal_spectral_matrix_L2(year: int,
                                        force_creation = make_dirs,
                                        hint = "RAW EMFISIS DIAGONAL SPECTRAL MATRIX L2 DIR")
         
-    wget_r_directory(folder_url = f"https://emfisis.physics.uiowa.edu/Flight/RBSP-{satellite.upper()}/L2/{year}/",
+    wget_r_directory(url = f"https://emfisis.physics.uiowa.edu/Flight/RBSP-{satellite.upper()}/L2/{year}/",
                      file_glob = f"rbsp-{satellite.lower()}_WFR-spectral-matrix-diagonal_emfisis-L2_{year}*.cdf",
                      savdir = output_dir)
 
@@ -242,8 +171,9 @@ def download_rbsp_emfisis_diagonal_spectral_matrix_L2(year: int,
 def download_year_psd_dependencies(satellite: str,
                                    field_model : model,
                                    year : int,
-                                   make_dirs : bool = False,
-                                   raw_data_dir = "./../raw_data/"):
+                                   make_dirs: bool = False,
+                                   config_path = "",
+                                   debug = False):
     
     '''
     Parameters:
@@ -254,48 +184,113 @@ def download_year_psd_dependencies(satellite: str,
         raw_data_dir: Directory where the raw data is stored.
     '''
     
-    ect_L3_output_dir = os.path.join(os.path.abspath(raw_data_dir), "RBSP", "ECT", "L3")
-    os_helper.verify_output_dir_exists(directory = ect_L3_output_dir,
-                                       force_creation=make_dirs,
-                                       hint="ECT L3 OUTPUT DIR")
+    download_from_global_config(id = ["RBSP", "ECT", "L3"], 
+                                replace = {"{$SATELLITE}" : satellite.lower(),
+                                           "{$YEAR}" : str(year),
+                                           "{$MONTH}" : "",
+                                           "{$DAY}" : ""},
+                                config_path = config_path,
+                                make_dirs = make_dirs,
+                                debug = debug)
     
-    magephem_output_dir = os.path.join(os.path.abspath(raw_data_dir), "RBSP", "MAGEPHEM")
-    os_helper.verify_output_dir_exists(directory = magephem_output_dir,
-                                       force_creation=make_dirs,
-                                       hint="MAGEPEHEM OUTPUT DIR")
     
-    emfisis_output_dir = os.path.join(os.path.abspath(raw_data_dir), "RBSP", "EMFISIS")
-    os_helper.verify_output_dir_exists(directory = emfisis_output_dir,
-                                       force_creation=make_dirs,
-                                       hint="EMFISIS OUTPUT DIR")
+    download_from_global_config(id = ["RBSP", "MAGEPHEM", field_model.name], 
+                                replace = {"{$SATELLITE}" : satellite.lower(),
+                                           "{$YEAR}" : str(year),
+                                           "{$MONTH}" : "",
+                                           "{$DAY}" : ""},
+                                config_path = config_path,
+                                make_dirs = make_dirs,
+                                debug = debug)
     
-    ect_download_folder_url = f"https://rbsp-ect.newmexicoconsortium.org/data_pub/rbsp{satellite.lower()}/ECT/level3/{year}/"
-    magephem_download_folder_url = f"https://rbsp-ect.newmexicoconsortium.org/data_pub/rbsp{satellite.lower()}/MagEphem/definitive/{year}/"
-    emfisis_download_folder_url = f"https://spdf.gsfc.nasa.gov/pub/data/rbsp/rbsp{satellite.lower()}/l3/emfisis/magnetometer/1sec/gse/{year}/"
+    download_from_global_config(id = ["RBSP", "EMFISIS", "L3"], 
+                                replace = {"{$SATELLITE}" : satellite.lower(),
+                                           "{$YEAR}" : str(year),
+                                           "{$MONTH}" : "",
+                                           "{$DAY}" : ""},
+                                config_path = config_path,
+                                make_dirs = make_dirs,
+                                debug = debug)
     
-    match field_model:
-        
-        case field_model.TS04D:
-        
-            magephem_file_glob = f"rbsp{satellite.lower()}_def_MagEphem_TS04D_{year}*.h5"
 
-        case field_model.T89D:
-            
-            magephem_file_glob = f"rbsp{satellite.lower()}_def_MagEphem_T89D_{year}*.h5"
-
-    wget_r_directory(folder_url = ect_download_folder_url,
-                     savdir = ect_L3_output_dir)
-    
-    wget_r_directory(folder_url = magephem_download_folder_url,
-                     file_glob = magephem_file_glob,
-                     savdir = magephem_output_dir)
-    
-    wget_r_directory(folder_url = emfisis_download_folder_url,
-                     savdir = emfisis_output_dir)
         
+def download_month_rbsp_rept_l2(satellite: str,
+                                month: int, year: int,
+                                make_dirs: bool = False,
+                                config_path = "",
+                                debug = False) -> None:
+
+    '''Example: download_month_rbsp_rept_l2(satellite = "a", month = 1, year = 2013, make_dirs = True)'''
+    
+    download_from_global_config(id = ["RBSP", "REPT", "L2"], 
+                                replace = {"{$SATELLITE}" : satellite.lower(),
+                                           "{$YEAR}" : str(year),
+                                           "{$MONTH}" : date_helper.month_str_from_int(month),
+                                           "{$DAY}" : ""},
+                                config_path = config_path,
+                                make_dirs = make_dirs,
+                                debug = debug)
+
+
+def download_month_goes_epead_cpflux(satellite: str,
+                                     month: int,
+                                     year: int, 
+                                     make_dirs: bool = False,
+                                     config_path = "",
+                                     debug = False) -> None:
+    
+    '''Example: download_month_goes_epead_cpflux(satellite = "g15", month = 5, year = 2014, make_dirs = True)'''
+    
+    download_from_global_config(id = ["GOES", "EPEAD_CPFLUX"], 
+                                replace = {"{$SATELLITE}" : satellite.lower(),
+                                           "{$SATID}" : satellite[-2:],
+                                           "{$YEAR}" : str(year),
+                                           "{$MONTH}" : date_helper.month_str_from_int(month)},
+                                config_path = config_path,
+                                make_dirs = make_dirs,
+                                debug = debug)
+
+
+def download_year_poes_after_2012(satid: str,
+                                  year: int,
+                                  make_dirs: bool = False,
+                                  config_path = "",
+                                  debug = False) -> None:
+    
+    '''Example: download_year_poes_after_2012(satid = "noaa15", year = 2014, make_dirs = True)'''
+    
+    satid = satid.lower()
+    
+    download_from_global_config(id = ["POES", "SEM", "L1B"], 
+                                replace = {"{$SATELLITE}" : f"{satid[0]}{satid[-2:]}",
+                                           "{$SATID}" : satid,
+                                           "{$YEAR}" : str(year),
+                                           "{$MONTH}" : "",
+                                           "{$DAY}" : ""},
+                                config_path = config_path,
+                                make_dirs = make_dirs,
+                                debug = debug)
+
+
+def download_legacy_poes_1998_to_2014(satid: str,
+                                      year: int,
+                                      make_dirs: bool = False,
+                                      config_path = "",
+                                      debug = False) -> None:
+    '''Example: download_legacy_poes_1998_to_2014(satid = "noaa15", year = 2010, make_dirs = True)'''
+
+    satid = satid.lower()
+
+    download_from_global_config(id = ["POES_LEGACY", "SEM", "L2"], 
+                                replace = {"{$SATELLITE}" : f"{satid[0]}{satid[-2:]}",
+                                           "{$SATID}" : satid,
+                                           "{$YEAR}" : str(year),
+                                           "{$MONTH}" : "",
+                                           "{$DAY}" : ""},
+                                config_path = config_path,
+                                make_dirs = make_dirs,
+                                debug = debug)
 
 if __name__ == "__main__":
 
-    download_rbsp_emfisis_diagonal_spectral_matrix_L2(year = 2013, 
-                                                      satellite = "A",
-                                                      make_dirs = True)
+    download_year_omni_one_hour_resolution(year = 2015, make_dirs = True)
