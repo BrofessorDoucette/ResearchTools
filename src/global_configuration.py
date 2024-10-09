@@ -22,15 +22,16 @@ class Config:
     def __init__(self, path : str = "") -> None:
         
         '''Set the config path here, either relative to where python is executed, or an absolute path.'''
-        
-        if not path:
-        
-            self._config_path = r"C:\Dev\Research\REPT_Enhancements_Tool\config.yaml"
+        if path:
+            self._config_path = path
+                        
+        elif os.environ.get("RESEARCH_CONFIG"):
+                    
+            self._config_path = os.path.abspath(os.environ["RESEARCH_RAW_DATA_DIR"])
             
         else:
-            
-            self._config_path = path
 
+            self._config_path = r"C:\Dev\Research\REPT_Enhancements_Tool\config.yaml"
     
     def load(self) -> tuple[dict, str]:
         

@@ -58,7 +58,9 @@ def get_file_names_between_start_and_end(start : datetime.datetime,
                 
                 sorted_list_of_file_names = sorted(list_of_file_names_or_empty)
                 sorted_list_of_paths = [os.path.join(os.path.abspath(input_dir), name) for name in sorted_list_of_file_names]
-                paths.extend(sorted_list_of_paths)
+                
+                #Grab the newest file... Some of the servers have more than one version of the same file for the same day. We need to deal with that somehow. 
+                paths.append(sorted_list_of_paths[-1])
                 
             else:
                 if debug and verbose:
@@ -95,8 +97,8 @@ def get_file_names_between_start_and_end(start : datetime.datetime,
         for dt in rrule.rrule(freq = rrule.YEARLY, dtstart = datetime.datetime(year = start.year, month=1, day=1), until = end, byyearday=(1)):
                         
             formatted_file_glob = global_configuration.replace_all_keys_in_string_with_values(file_glob, {"{$YEAR}" : dt.year,
-                                                                                                "{$MONTH}" : date_helper.month_str_from_int(dt.month),
-                                                                                                "{$DAY}" : date_helper.day_str_from_int(dt.day)})
+                                                                                                          "{$MONTH}" : date_helper.month_str_from_int(dt.month),
+                                                                                                          "{$DAY}" : date_helper.day_str_from_int(dt.day)})
             
             input_dir = global_configuration.replace_all_keys_in_string_with_values(input_dir_structure, {"{$YEAR}" : dt.year,
                                                                                                           "{$MONTH}" : date_helper.month_str_from_int(dt.month),
@@ -121,35 +123,50 @@ def get_file_names_between_start_and_end(start : datetime.datetime,
     return paths
     
 
+
 def load_data_files(paths : list[str],
                     extension : str,
-                    variables : list[str],
                     variable_config : dict,
                     debug : bool = False) -> dict:
     
     if debug:
         print(f"Paths: {paths}")
-        print(f"Variables requested: {variables}")
         print(f"Variable config: {variable_config}")
     
-    #Concatenating all the arrays at once is much faster than copying every time?
-    unconcatenated_arrays = {}
+    if "time_variables" not in variable_config:
+        variable_config["time_variables"] = {}
+    if "time_dependent" not in variable_config:
+        variable_config["time_dependent"] = {}
+    if "file_dependent" not in variable_config:
+        variable_config["file_dependent"] = {}
     
-    for var in variables:
-        unconcatenated_arrays[var] = []
+    #Concatenating all the arrays at once is much faster than copying every time?
+    unconcatenated_arrays = {}    
+    
+    for var_type in variable_config:
+        for var in variable_config[var_type]:
+            unconcatenated_arrays[var] = []
+            
+    timestamps_per_file = []
     
     if extension == ".cdf":
         
         for i, path in enumerate(paths):
-        
+                        
             with cdflib.CDF(path = path) as cdf_file:
                 
-                for var in variables:
-                    
-                    if (i == 0) and (variable_config[var] is None):
-                        unconcatenated_arrays[var].append(cdf_file.varget(variable=var, startrec=0))
-                    elif (variable_config is not None):
-                        unconcatenated_arrays[var].append(cdf_file.varget(variable=var, startrec=0))
+                for j, var in enumerate(variable_config["time_variables"]):
+                    t_array = np.squeeze(cdf_file.varget(variable=var))
+                    unconcatenated_arrays[var].append(t_array)
+                    if j == 0:
+                        timestamps_per_file.append(len(t_array))
+                
+                for var in variable_config["time_dependent"]:
+                    unconcatenated_arrays[var].append(cdf_file.varget(variable=var))
+
+                for var in variable_config["file_dependent"]:                            
+                    unconcatenated_arrays[var].append(np.expand_dims(cdf_file.varget(variable=var), axis=0))
+                        
     
     if extension == ".h5":
         
@@ -157,12 +174,18 @@ def load_data_files(paths : list[str],
             
             with h5py.File(path, "r") as h5_file:
                 
-                for var in variables:
-
-                    if (i == 0) and (variable_config[var] is None):
-                        unconcatenated_arrays[var].append(h5_file[var][...])
-                    elif (variable_config is not None):
-                        unconcatenated_arrays[var].append(h5_file[var][...])
+                for j, var in enumerate(variable_config["time_variables"]):
+                    t_array = np.squeeze(h5_file[var][...])
+                    unconcatenated_arrays[var].append(t_array)
+                    if j == 0:
+                        timestamps_per_file.append(len(t_array))
+                
+                for var in variable_config["time_dependent"]:
+                    unconcatenated_arrays[var].append(h5_file[var][...])
+                    
+                for var in variable_config["file_dependent"]:
+                    unconcatenated_arrays[var].append(np.expand_dims(h5_file[var][...], axis=0))
+                
     
     if extension == ".nc":
         
@@ -170,30 +193,42 @@ def load_data_files(paths : list[str],
             
             with Dataset(path, "r") as nc_file:
                 
-                for var in variables:
-
-                    if (i == 0) and (variable_config[var] is None):
-                        unconcatenated_arrays[var].append(np.ma.MaskedArray.filled(nc_file.variables[var][...], fill_value = np.NaN))
-                    elif (variable_config is not None):
-                        unconcatenated_arrays[var].append(np.ma.MaskedArray.filled(nc_file.variables[var][...], fill_value = np.NaN))
+                for j, var in enumerate(variable_config["time_variables"]):
+                    t_array = np.squeeze(np.ma.MaskedArray.filled(nc_file.variables[var][...], fill_value = np.nan))
+                    unconcatenated_arrays[var].append(t_array)
+                    if j == 0:
+                        timestamps_per_file.append(len(t_array))
                 
+                for var in variable_config["time_dependent"]:
+                    unconcatenated_arrays[var].append(np.ma.MaskedArray.filled(nc_file.variables[var][...], fill_value = np.nan))
+                    
+                for var in variable_config["file_dependent"]:
+                    unconcatenated_arrays[var].append(np.expand_dims(np.ma.MaskedArray.filled(nc_file.variables[var][...], fill_value = np.nan), axis=0))
+        
     refs = {}
+    for var in variable_config["time_variables"]:
+        refs[var] = np.concatenate(unconcatenated_arrays[var], axis = variable_config["time_variables"][var])
+    for var in variable_config["time_dependent"]:
+        refs[var] = np.concatenate(unconcatenated_arrays[var], axis = variable_config["time_dependent"][var])
+    for var in variable_config["file_dependent"]:
+        refs[var] = np.concatenate(unconcatenated_arrays[var], axis = 0)
     
-    for var in variables:
-        refs[var] = np.concatenate(unconcatenated_arrays[var], axis = variable_config[var])
+    if timestamps_per_file:
+        refs["timestamps_per_file"] = timestamps_per_file
     
     return refs
 
 def load_raw_data_from_config(id : list[str], 
                               start : datetime.datetime,
                               end : datetime.datetime,
-                              variables : list[str] = [],
                               satellite: str = "",
                               config_path : str = "",
                               debug : bool = False,
                               verbose: bool = False) -> dict:
     
-    '''If you don't specify any variables here, all the variables in the config will be loaded... Otherwise an error will be thrown.'''
+    '''This function loads at least all the data between start and end for the variables specified in the config.yaml file for this id.
+        However, this function is not meant to be intelligent, essentially it doesn't know what type of data the time variable is..
+        so it doesn't crop the data loaded to provide only data between start and end. Instead, the user of the function is expected to crop the data manually.'''
     
     config, config_path = global_configuration.Config(config_path).load()
     
@@ -222,13 +257,14 @@ def load_raw_data_from_config(id : list[str],
         else:
             file_name = global_configuration.replace_all_keys_in_string_with_values(file_name, {"{$SATELLITE}": satellite})
             input_dir_structure = global_configuration.replace_all_keys_in_string_with_values(input_dir_structure, {"{$SATELLITE}": satellite})
+            
+    if "{$SATELLITE_UPPER}" in file_name or "{$SATELLITE_UPPER}" in input_dir_structure:
+        if not satellite:
+            raise Exception("File name or input_dir for this ID requires a satellite but no satellite was specified!")
+        else:
+            file_name = global_configuration.replace_all_keys_in_string_with_values(file_name, {"{$SATELLITE_UPPER}": satellite.upper()})
+            input_dir_structure = global_configuration.replace_all_keys_in_string_with_values(input_dir_structure, {"{$SATELLITE_UPPER}": satellite.upper()})
     #-------------------------------------------------------------------------------
-    
-    if "variables" in id_config.keys():  
-        if not variables:
-            variables = list(id_config["variables"].keys())
-    else:
-        raise Exception("The config has no variables specified!")
     
     
     paths_of_files_within_timeperiod = get_file_names_between_start_and_end(start = start,
@@ -238,9 +274,11 @@ def load_raw_data_from_config(id : list[str],
                                                                             debug = debug,
                                                                             verbose = verbose)
     
+    if len(paths_of_files_within_timeperiod) == 0:
+        return {}
+    
     return load_data_files(paths = paths_of_files_within_timeperiod,
                            extension = file_extension,
-                           variables = variables, 
                            variable_config = id_config["variables"],
                            debug = debug)
 

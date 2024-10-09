@@ -24,7 +24,7 @@ def quadratic(x, a, b, c):
                 
 @njit(cache=True, inline="always")
 def accelerated_interp(x, xp, fp):
-    
+    '''This is a lot faster than np.interp() when searching for a single value..'''
     j = np.searchsorted(xp, x, side="right") - 1
         
     if (j < 0) or (j >= xp.size - 1):

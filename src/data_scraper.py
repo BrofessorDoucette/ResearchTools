@@ -84,14 +84,13 @@ def download_from_global_config(id : list[str],
         print(f"Procesed URL : {url}")
             
     if os.environ.get("RESEARCH_RAW_DATA_DIR"):
-        output_dir = os.path.join(os.environ["RESEARCH_RAW_DATA_DIR"], *id)
+        output_dir = os.path.join(os.path.abspath(os.environ["RESEARCH_RAW_DATA_DIR"]), *id)
     else:
         output_dir = os.path.join(os.path.abspath(os.path.dirname(config_path)), *id)
     
     if "subdir" in id_config:
         subdir = global_configuration.replace_all_keys_in_string_with_values(id_config["subdir"], map = replace)
-        output_dir = os.path.join(output_dir, *subdir.split("/"))
-        
+        output_dir = os.path.abspath(os.path.join(os.path.abspath(output_dir), *subdir.split("/")))
             
     os_helper.verify_output_dir_exists(directory = output_dir,
                                        force_creation = make_dirs,
@@ -103,6 +102,9 @@ def download_from_global_config(id : list[str],
     wget_r_directory(file_glob = file_glob,
                      url = url,
                      savdir = output_dir)
+    
+    if not os.listdir(output_dir):
+        os.rmdir(output_dir)
 
 
 #The following methods are essentially just examples of how to use the global config to download files
@@ -231,21 +233,84 @@ def download_month_rbsp_rept_l2(satellite: str,
                                 make_dirs = make_dirs,
                                 debug = debug)
 
-
-def download_month_goes_epead_cpflux(satellite: str,
-                                     month: int,
-                                     year: int, 
-                                     make_dirs: bool = False,
-                                     config_path = "",
-                                     debug = False) -> None:
+def download_month_goes_eps(satid: str,
+                            month: int,
+                            year: int, 
+                            make_dirs: bool = False,
+                            config_path = "",
+                            debug = False) -> None:
     
-    '''Example: download_month_goes_epead_cpflux(satellite = "g15", month = 5, year = 2014, make_dirs = True)'''
+    '''Example: download_month_goes_eps(satellite = "g08", month = 5, year = 1998, make_dirs = True)'''
     
-    download_from_global_config(id = ["GOES", "EPEAD_CPFLUX"], 
-                                replace = {"{$SATELLITE}" : satellite.lower(),
-                                           "{$SATID}" : satellite[-2:],
+    satid = satid.lower()
+    
+    download_from_global_config(id = ["GOES", "AVG", "EPS"], 
+                                replace = {"{$SATELLITE}" : f"{satid[0]}{satid[-2:]}",
+                                           "{$SATID}" : satid,
                                            "{$YEAR}" : str(year),
                                            "{$MONTH}" : date_helper.month_str_from_int(month)},
+                                config_path = config_path,
+                                make_dirs = make_dirs,
+                                debug = debug)
+
+def download_month_goes_epead(satid: str,
+                              month: int,
+                              year: int, 
+                              make_dirs: bool = False,
+                              config_path = "",
+                              debug = False) -> None:
+    
+    '''Example: download_month_goes_epead(satellite = "g15", month = 5, year = 2014, make_dirs = True)'''
+    
+    satid = satid.lower()
+    
+    download_from_global_config(id = ["GOES", "AVG", "EPEAD"], 
+                                replace = {"{$SATELLITE}" : f"{satid[0]}{satid[-2:]}",
+                                           "{$SATID}" : satid,
+                                           "{$YEAR}" : str(year),
+                                           "{$MONTH}" : date_helper.month_str_from_int(month)},
+                                config_path = config_path,
+                                make_dirs = make_dirs,
+                                debug = debug)
+    
+def download_month_goes_sgps(satid: str,
+                             month: int,
+                             year: int, 
+                             make_dirs: bool = False,
+                             config_path = "",
+                             debug = False) -> None:
+    
+    '''Example: download_month_goes_sgps(satellite = "g08", month = 5, year = 1998, make_dirs = True)'''
+    
+    satid = satid.lower()
+    
+    download_from_global_config(id = ["GOES", "AVG", "SGPS", "V1"], 
+                                replace = {"{$SATELLITE}" : f"{satid[0]}{satid[-2:]}",
+                                           "{$SATID}" : satid,
+                                           "{$YEAR}" : str(year),
+                                           "{$MONTH}" : date_helper.month_str_from_int(month),
+                                           "{$DAY}": "[0-9]*[0-9]*"},
+
+                                config_path = config_path,
+                                make_dirs = make_dirs,
+                                debug = debug)
+    
+    download_from_global_config(id = ["GOES", "AVG", "SGPS", "V2"], 
+                                replace = {"{$SATELLITE}" : f"{satid[0]}{satid[-2:]}",
+                                           "{$SATID}" : satid,
+                                           "{$YEAR}" : str(year),
+                                           "{$MONTH}" : date_helper.month_str_from_int(month),
+                                           "{$DAY}": "[0-9]*[0-9]*"},
+                                config_path = config_path,
+                                make_dirs = make_dirs,
+                                debug = debug)
+    
+    download_from_global_config(id = ["GOES", "AVG", "SGPS", "V3"], 
+                                replace = {"{$SATELLITE}" : f"{satid[0]}{satid[-2:]}",
+                                           "{$SATID}" : satid,
+                                           "{$YEAR}" : str(year),
+                                           "{$MONTH}" : date_helper.month_str_from_int(month),
+                                           "{$DAY}": "[0-9]*[0-9]*"},
                                 config_path = config_path,
                                 make_dirs = make_dirs,
                                 debug = debug)
@@ -291,6 +356,22 @@ def download_legacy_poes_1998_to_2014(satid: str,
                                 make_dirs = make_dirs,
                                 debug = debug)
 
+
+def raster_download_goes_for_solar_cycle_study(debug: bool):
+    
+    #for satellite in ['goes08', 'goes09', 'goes10', 'goes11', 'goes12', 'goes13', 'goes14', 'goes15', 'goes16', 'goes17', 'goes18']:
+    for satellite in ['goes16', 'goes17', 'goes18']:
+        #for year in range(1998, 2025):
+        for year in range(2024, 2025):
+            for month in range(9, 13):
+                
+                #if satellite in ["goes08", "goes09", "goes10", "goes11", "goes12"]:
+                #    download_month_goes_eps(satid = satellite, month = month, year = year, make_dirs = True, config_path="../config.yaml", debug=debug)
+                #elif satellite in ["goes13", "goes14", "goes15"]:
+                #    download_month_goes_epead(satid = satellite, month = month, year = year, make_dirs = True, config_path="../config.yaml", debug=debug)
+                if satellite in ["goes16", "goes17", "goes18"]:
+                    download_month_goes_sgps(satid = satellite, month = month, year = year, make_dirs = True, config_path="../config.yaml", debug=debug)
+
 if __name__ == "__main__":
 
-    download_year_omni_one_hour_resolution(year = 2015, make_dirs = True)
+    raster_download_goes_for_solar_cycle_study(debug=True)
