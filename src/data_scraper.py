@@ -138,38 +138,6 @@ def download_year_omni_one_hour_resolution(year: int,
                                 make_dirs = make_dirs,
                                 debug = debug)
 
-
-def download_rbsp_emfisis_wna_survey_L4(year: int,
-                                        satellite: str,
-                                        make_dirs = False,
-                                        raw_data_dir = "./../raw_data/"):
-    
-    output_dir = os.path.join(os.path.abspath(raw_data_dir), "RBSP", "EMFISIS", "L4")
-    
-    os_helper.verify_output_dir_exists(directory = output_dir,
-                                       force_creation = make_dirs,
-                                       hint = "RAW EMFISIS WNA SURVEY L4 DIR")
-        
-    wget_r_directory(url = f"https://emfisis.physics.uiowa.edu/Flight/RBSP-{satellite.upper()}/L4/{year}",
-                     file_glob = f"rbsp-{satellite.lower()}_wna-survey_emfisis-L4_{year}*v2*.cdf",
-                     savdir = output_dir)
-    
-def download_rbsp_emfisis_diagonal_spectral_matrix_L2(year: int,
-                                                      satellite: str,
-                                                      make_dirs = False,
-                                                      raw_data_dir = "./../raw_data/"):
-    
-    output_dir = os.path.join(os.path.abspath(raw_data_dir), "RBSP", "EMFISIS", "L2")
-    
-    os_helper.verify_output_dir_exists(directory = output_dir,
-                                       force_creation = make_dirs,
-                                       hint = "RAW EMFISIS DIAGONAL SPECTRAL MATRIX L2 DIR")
-        
-    wget_r_directory(url = f"https://emfisis.physics.uiowa.edu/Flight/RBSP-{satellite.upper()}/L2/{year}/",
-                     file_glob = f"rbsp-{satellite.lower()}_WFR-spectral-matrix-diagonal_emfisis-L2_{year}*.cdf",
-                     savdir = output_dir)
-
-
 def download_year_psd_dependencies(satellite: str,
                                    field_model : model,
                                    year : int,
@@ -374,4 +342,31 @@ def raster_download_goes_for_solar_cycle_study(debug: bool):
 
 if __name__ == "__main__":
 
-    raster_download_goes_for_solar_cycle_study(debug=True)
+    #raster_download_goes_for_solar_cycle_study(debug=True)
+    
+    '''for satellite in ["a", "b"]:
+        
+        for dt in rrule.rrule(freq=rrule.DAILY, dtstart=datetime.datetime(year=2019, month=1, day=1), until=datetime.datetime(year=2020, month=1, day=1)):
+        
+            download_from_global_config(["RBSP", "EMFISIS", "L2", "WFR_SPECTRAL_MATRIX_DIAGONAL"], 
+                                        replace = {"{$SATELLITE}" : satellite.lower(),
+                                                    "{$SATELLITE_UPPER}" : satellite.upper(),
+                                                    "{$YEAR}" : str(dt.year),
+                                                    "{$MONTH}": date_helper.month_str_from_int(dt.month),
+                                                    "{$DAY}": date_helper.day_str_from_int(dt.day)}, 
+                                        config_path = "../config.yaml", 
+                                        make_dirs = True)
+            
+            download_from_global_config(["RBSP", "EMFISIS", "L4", "WNA_SURVEY"], 
+                                        replace = {"{$SATELLITE}" : satellite.lower(),
+                                                    "{$SATELLITE_UPPER}" : satellite.upper(),
+                                                    "{$YEAR}" : str(dt.year),
+                                                    "{$MONTH}": date_helper.month_str_from_int(dt.month),
+                                                    "{$DAY}": date_helper.day_str_from_int(dt.day)}, 
+                                        config_path = "../config.yaml", 
+                                        make_dirs = True)'''
+
+
+    for year in range(1998, 2024):
+        
+        download_year_omni_one_hour_resolution(year = year, make_dirs=True, config_path = "../config.yaml", debug=False)

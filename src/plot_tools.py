@@ -8,6 +8,7 @@ import numpy.typing as npt
 import pandas as pd
 from collections.abc import Iterable
 import typing
+import tqdm
 
 
 OUTPUT_DIR = "./../saved_plots/"
@@ -105,9 +106,19 @@ def bin_3D_data(xdata, ydata, zdata, xstart, xend, xstep, ystart, yend, ystep, x
     '''This is used when plotting the chorus proxy, chorus from VAP, fokker-planck simulation results, etc. 
         This function is fast for high resolution bins, but slow for large input arrays.
         (xend - xstart)/xstep should be an integer, and (yend - ystart)/ystep should be an integer.'''
+        
+    xdata = np.array(xdata)
+    ydata = np.array(ydata)
+    zdata = np.array(zdata)
     
     x_bin_edges = [xstart + j * xstep for j in range((int((xend - xstart) / xstep) + 1))]
     y_bin_edges = [ystart + j * ystep for j in range((int((yend - ystart) / ystep) + 1))]
+    
+    indices_needed = (x_bin_edges[0] < xdata) & (xdata < x_bin_edges[-1]) & (y_bin_edges[0] < ydata) & (ydata < y_bin_edges[-1])
+    
+    xdata = xdata[indices_needed]
+    ydata = ydata[indices_needed]
+    zdata = zdata[indices_needed]
         
     if type(x_bin_edges[0]) == float:
         x_bin_edges = np.round(x_bin_edges, decimals=xprecision)
@@ -124,6 +135,9 @@ def bin_3D_data(xdata, ydata, zdata, xstart, xend, xstep, ystart, yend, ystep, x
         
         x_bin = x_mapping[T]
         y_bin = y_mapping[T]
+        
+        if x_bin == 363:
+            pass
                 
         num_points_in_each_x_y_bin[x_bin, y_bin] += 1
         sum_of_z_in_each_x_y_bin[x_bin, y_bin] += zdata[T]
