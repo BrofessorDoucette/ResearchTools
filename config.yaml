@@ -17,9 +17,15 @@ OMNI:
       time_dependent:
         BZ_GSM : 0
         AE_INDEX: 0
+        Vz: 0
+        #Machine learning model needed these...
         flow_speed : 0
-        Pressure : 0
+        proton_density : 0
+        SYM_H : 0
+        #F is the average magnitude of the B field vector..
+        F : 0 
 
+        
   ONE_HOUR_RESOLUTION:
 
     subdir : "{$YEAR}"
@@ -31,6 +37,7 @@ OMNI:
       time_dependent:
         Dst : 0
         KP : 0
+        R : 0
 
 RBSP:
 
@@ -53,7 +60,7 @@ RBSP:
 
         subdir : "{$SATELLITE_UPPER}/{$YEAR}"
         file_glob : "rbsp-{$SATELLITE}_WFR-spectral-matrix-diagonal_emfisis-L2_{$YEAR}{$MONTH}{$DAY}*.cdf"
-        url : "https://emfisis.physics.uiowa.edu/Flight/RBSP-{$SATELLITE_UPPER}/L2/{$YEAR}/{$MONTH}/{$DAY}/rbsp-{$SATELLITE}_WFR-spectral-matrix-diagonal_emfisis-L2_{$YEAR}{$MONTH}{$DAY}*.cdf"
+        url : "https://emfisis.physics.uiowa.edu/Flight/RBSP-{$SATELLITE_UPPER}/L2/{$YEAR}/{$MONTH}/{$DAY}/"
         variables:
           time_variables:
             Epoch : 0
@@ -72,8 +79,8 @@ RBSP:
       WNA_SURVEY:
 
         subdir: "{$SATELLITE_UPPER}/{$YEAR}"
-        file_glob : "rbsp-{$SATELLITE}_wna-survey_emfisis-L4_{$YEAR}{$MONTH}{$DAY}_v2*.cdf"
-        url : "https://emfisis.physics.uiowa.edu/Flight/RBSP-{$SATELLITE_UPPER}/L4/{$YEAR}/{$MONTH}/{$DAY}/rbsp-{$SATELLITE}_wna-survey_emfisis-L4_{$YEAR}{$MONTH}{$DAY}_v2*.cdf"
+        file_glob : "rbsp-{$SATELLITE}_wna-survey_emfisis-L4_{$YEAR}{$MONTH}{$DAY}*.cdf"
+        url : "https://emfisis.physics.uiowa.edu/Flight/RBSP-{$SATELLITE_UPPER}/L4/{$YEAR}/{$MONTH}/{$DAY}/"
         variables:
           time_variables:
             Epoch : 0
@@ -97,8 +104,8 @@ RBSP:
     T89D:
 
       subdir : "{$SATELLITE}/{$YEAR}"
-      file_glob : "rbsp{$SATELLITE}_def_MagEphem_T89D_{$YEAR}{$MONTH}{$DAY}*.h5"
-      url : "https://rbsp-ect.newmexicoconsortium.org/data_pub/rbsp{$SATELLITE}/MagEphem/definitive/{$YEAR}/"
+      file_glob : "rbsp-{$SATELLITE}_mag-ephem_def-1min-t89d_{$YEAR}{$MONTH}{$DAY}*.cdf"
+      url : "https://spdf.gsfc.nasa.gov/pub/data/rbsp/rbsp{$SATELLITE}/ephemeris/ect-mag-ephem/cdf/def-1min-t89d/{$YEAR}/"
 
   REPT:
 
@@ -208,3 +215,25 @@ POES:
           mep0E : 0
           lValue : 0
           magLTime: 0
+    
+    SPDF:
+      subdir : "{$SATELLITE}/{$YEAR}"
+      file_glob : "{$SATELLITE}_poes-sem2_fluxes-2sec_{$YEAR}{$MONTH}{$DAY}*.cdf"
+      url : "https://spdf.gsfc.nasa.gov/pub/data/noaa/{$SATELLITE}/sem2_fluxes-2sec/{$YEAR}/"
+
+    MPE:
+      subdir : "{$SATELLITE}"
+      file_glob : "POES_combinedSpectrum_{$SATELLITE}_BLC_v3_{$YEAR}{$MONTH}{$DAY}.nc"
+      #No url cause you need to contact Joshua Pettit to get access to this data!
+      variables:
+        time_variables:
+          time : 0
+        time_dependent:
+          geogLat : 0
+          geogLon : 0
+          BLC_Flux: 0
+          BLC_Angle: 0
+          MLT : 0
+          lValue : 0 
+        file_dependent:
+          energy : null
