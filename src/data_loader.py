@@ -217,6 +217,7 @@ def load_raw_data_from_config(id : list[str],
                               satellite: str = "",
                               config_path : str = "",
                               root_data_dir : str = "",
+                              use_config_keys_in_subdir: bool = True,
                               debug : bool = False,
                               verbose: bool = False) -> dict:
     
@@ -229,13 +230,24 @@ def load_raw_data_from_config(id : list[str],
     id_config = config
     for level in id:
         id_config = id_config[level]
+        
+    if use_config_keys_in_subdir:
     
-    if os.environ.get("RESEARCH_RAW_DATA_DIR"):
-        input_dir_structure = os.path.join(os.environ["RESEARCH_RAW_DATA_DIR"], *id)
-    elif not (root_data_dir is None):
-        input_dir_structure = os.path.join(os.path.abspath(os.path.dirname(root_data_dir)), *id)
+        if os.environ.get("RESEARCH_RAW_DATA_DIR"):
+            input_dir_structure = os.path.join(os.environ["RESEARCH_RAW_DATA_DIR"], *id)
+        elif not (root_data_dir is None):
+            input_dir_structure = os.path.join(os.path.abspath(os.path.dirname(root_data_dir)), *id)
+        else:
+            input_dir_structure = os.path.join(os.path.abspath(os.path.dirname(config_path)), *id)
+            
     else:
-        input_dir_structure = os.path.join(os.path.abspath(os.path.dirname(config_path)), *id)
+        
+        if os.environ.get("RESEARCH_RAW_DATA_DIR"):
+            input_dir_structure = os.environ["RESEARCH_RAW_DATA_DIR"]
+        elif not (root_data_dir is None):
+            input_dir_structure = os.path.abspath(os.path.dirname(root_data_dir))
+        else:
+            input_dir_structure = os.path.abspath(os.path.dirname(config_path))
     
     if "subdir" in id_config:
         input_dir_structure = os.path.join(input_dir_structure, *id_config["subdir"].split("/"))

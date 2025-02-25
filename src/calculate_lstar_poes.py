@@ -1,78 +1,20 @@
 from cdflib.epochs_astropy import CDFAstropy as cdfepoch
-import astropy.time
 import data_loader
 import datetime
 import matplotlib.pyplot as plt
 import numpy as np
 import os_helper
 import pandas as pd
-import tqdm
 import time
 import multiprocessing as mp
 import os
 
-import IRBEM
+import useful_irbem_wrappers as irbem
+from interpolation_tools import interpolate_between_big_distances
 
 import data_loader
 import chorus_machine_learning_helper
-import rbsp_chorus_tool
 
-
-def calculate_mag_coords_for_chunk(dates, alt, lat, lon, kp):
-    
-    equator_model = IRBEM.MagFields(path = r".\..\IRBEM\libirbem.dll",
-                            options = [0,0,0,0,0], 
-                            kext = "T89",
-                            sysaxes = 0, #GDZ
-                            verbose = False)
-    
-    locations_of_equator = []
-    
-    for T in range(len(dates)):
-        
-        sat_coords = {
-            "dateTime" : dates[T],
-            "x1" : alt[T],
-            "x2" : lat[T],
-            "x3" : lon[T],
-        }
-
-        mag_inputs = {
-            "Kp" : kp[T]
-        }
-        
-        locations_of_equator.append(equator_model.find_magequator(X = sat_coords, maginput = mag_inputs)["XGEO"])
-        
-    locations_of_equator = np.vstack(locations_of_equator)
-    
-        
-    lstar_model = IRBEM.MagFields(path = r".\..\IRBEM\libirbem.dll",
-                            options = [1,0,0,0,0], 
-                            kext = "T89",
-                            sysaxes = 2, #GSM!
-                            verbose = False)
-    
-    lstar_calculated = []
-        
-    for T in range(0, len(locations_of_equator), 25):
-        
-        equator_coords = {
-            
-            "dateTime" : dates[T : T + 25],
-            "x1" : locations_of_equator[T : T + 25, 0].flatten(),
-            "x2" : locations_of_equator[T : T + 25, 1].flatten(),
-            "x3" : locations_of_equator[T : T + 25, 2].flatten()
-            
-        }
-        
-        mag_inputs = {
-            "Kp" : kp[T : T + 25].flatten()
-        }
-        
-        lstar_calculated.append(lstar_model.make_lstar(X = equator_coords, maginput = mag_inputs)["Lstar"])
-        
-        
-    return np.hstack(lstar_calculated).flatten()
 
 
 if __name__ == "__main__":
@@ -150,9 +92,7 @@ if __name__ == "__main__":
         avg_geog_lat = avg_geog_lat[all_finite]
         avg_geog_lon = avg_geog_lon[all_finite]
         avg_kp = avg_kp[all_finite]
-        
-        big_distances = np.nonzero(((unix_times_of_averages[1:] - unix_times_of_averages[:-1]) > 60))[0] + 1
-                        
+                                
         queued_work = []
         num_processes = mp.cpu_count() - 2
         pool = mp.Pool(processes = num_processes)
@@ -188,7 +128,7 @@ if __name__ == "__main__":
             
             chunks_to_process.append(chunk)
                 
-        results = pool.starmap(calculate_mag_coords_for_chunk, chunks_to_process)
+        results = pool.starmap(irbem.calculate_lstar_at_magnetic_equator_T89, chunks_to_process)
                 
         pool.close() 
         pool.join()
@@ -197,41 +137,8 @@ if __name__ == "__main__":
         
         Lstar_calculated[(Lstar_calculated > 100)] = np.nan
         
-        Lstar_interpolated = np.zeros_like(SAT["UNIX_TIME"])
-        Lstar_interpolated[:] = np.nan
-        
-        if len(big_distances) > 0:
-            
-            print("There were big distances to deal with, probably should check the data!")
-                    
-            for m, d in enumerate(big_distances):
-                
-                if m == 0 :
-                    
-                    start_index = 0
-                    end_index = d
-                    
-                else:
-                    
-                    start_index = big_distances[m - 1]
-                    end_index = d
-                    
-                interpolated_between_big_distances = np.interp(SAT["UNIX_TIME"], unix_times_of_averages[start_index:end_index], Lstar_calculated[start_index:end_index], left=np.nan, right=np.nan)
-                non_nan_values = np.isfinite(interpolated_between_big_distances)
-                Lstar_interpolated[non_nan_values] = interpolated_between_big_distances[non_nan_values]
-            
-            #Get the last chunk
-            
-            start_index = big_distances[-1]
-            
-            interpolated_between_big_distances = np.interp(SAT["UNIX_TIME"], unix_times_of_averages[start_index:], Lstar_calculated[start_index:], left=np.nan, right=np.nan)
-            non_nan_values = np.isfinite(interpolated_between_big_distances)
-            Lstar_interpolated[non_nan_values] = interpolated_between_big_distances[non_nan_values]
-
-        else:
-            
-            Lstar_interpolated = np.interp(SAT["UNIX_TIME"], unix_times_of_averages, Lstar_calculated, left=np.nan, right=np.nan)
-        
+        big_distances = np.nonzero((unix_times_of_averages[1:] - unix_times_of_averages[:-1]) > 60)[0] + 1
+        Lstar_interpolated = interpolate_between_big_distances(SAT["UNIX_TIME"], unix_times_of_averages, Lstar_calculated, big_distances)
         
         finite_time = np.isfinite(SAT["UNIX_TIME"])
         finite_blc_angle = np.isfinite(SAT["BLC_Angle"])

@@ -56,6 +56,8 @@ def wget_file(filename: str, url: str, savdir: str) -> None:
 def download_from_global_config(id : list[str], 
                                 replace : dict = None, 
                                 config_path : str = "", 
+                                raw_data_dir : str = "",
+                                use_config_keys_in_subdir : bool = True,
                                 make_dirs : bool = False,
                                 debug : bool = False):
     '''Downloads files using the global configuration. 
@@ -82,11 +84,24 @@ def download_from_global_config(id : list[str],
         print(f"RAW URL : {id_config["url"]}")
         print(f"Processed FILE_GLOB : {file_glob}")
         print(f"Procesed URL : {url}")
+        
+    if use_config_keys_in_subdir:
             
-    if os.environ.get("RESEARCH_RAW_DATA_DIR"):
-        output_dir = os.path.join(os.path.abspath(os.environ["RESEARCH_RAW_DATA_DIR"]), *id)
+        if os.environ.get("RESEARCH_RAW_DATA_DIR"):
+            output_dir = os.path.join(os.path.abspath(os.environ["RESEARCH_RAW_DATA_DIR"]), *id)
+        elif raw_data_dir:
+            output_dir = os.path.join(os.path.abspath(os.path.dirname(raw_data_dir)), *id)
+        else:
+            output_dir = os.path.join(os.path.abspath(os.path.dirname(config_path)), *id)
+    
     else:
-        output_dir = os.path.join(os.path.abspath(os.path.dirname(config_path)), *id)
+        
+        if os.environ.get("RESEARCH_RAW_DATA_DIR"):
+            output_dir = os.path.abspath(os.environ["RESEARCH_RAW_DATA_DIR"])
+        elif raw_data_dir:
+            output_dir = os.path.abspath(os.path.dirname(raw_data_dir))
+        else:
+            output_dir = os.path.abspath(os.path.dirname(config_path))
     
     if "subdir" in id_config:
         subdir = global_configuration.replace_all_keys_in_string_with_values(id_config["subdir"], map = replace)
@@ -112,6 +127,8 @@ def download_from_global_config(id : list[str],
 def download_year_omni_one_min_resolution(year: int, 
                                           make_dirs: bool = False,
                                           config_path = "",
+                                          raw_data_dir: str = "",
+                                          use_config_keys_in_subdir : bool = True,
                                           debug = False) -> None:
     
     '''Example : download_year_omni_one_min_resolution(year = 2013, make_dirs = True)'''
@@ -120,6 +137,8 @@ def download_year_omni_one_min_resolution(year: int,
                                 replace = {"{$YEAR}" : str(year),
                                            "{$MONTH}" : ""},
                                 config_path = config_path,
+                                raw_data_dir = raw_data_dir,
+                                use_config_keys_in_subdir = use_config_keys_in_subdir,
                                 make_dirs = make_dirs,
                                 debug = debug)
 
@@ -127,6 +146,8 @@ def download_year_omni_one_min_resolution(year: int,
 def download_year_omni_one_hour_resolution(year: int, 
                                            make_dirs: bool = False,
                                            config_path = "",
+                                           raw_data_dir: str = "",
+                                           use_config_keys_in_subdir : bool = True,
                                            debug = False) -> None:
     
     '''Example: download_year_omni_one_hour_resolution(year = 2013, make_dirs = True)'''
@@ -135,6 +156,8 @@ def download_year_omni_one_hour_resolution(year: int,
     download_from_global_config(id = ["OMNI", "ONE_HOUR_RESOLUTION"], 
                                 replace = {"{$YEAR}" : str(year)},
                                 config_path = config_path,
+                                raw_data_dir = raw_data_dir,
+                                use_config_keys_in_subdir = use_config_keys_in_subdir,
                                 make_dirs = make_dirs,
                                 debug = debug)
 
@@ -342,44 +365,7 @@ def raster_download_goes_for_solar_cycle_study(debug: bool):
 
 if __name__ == "__main__":
 
-    #raster_download_goes_for_solar_cycle_study(debug=True)
     
-    for satellite in ["b"]:
+    for year in range(2012, 2020):
         
-        
-        for year in range(2012, 2020):
-            
-            
-            for dt in rrule.rrule(freq=rrule.DAILY, dtstart=datetime.datetime(year=2012, month=1, day=1), until=datetime.datetime(year=2020, month=1, day=1)):
-            
-                download_from_global_config(["RBSP", "MAGEPHEM", "T89D"], 
-                                            replace = {"{$SATELLITE}" : satellite.lower(),
-                                                        "{$SATELLITE_UPPER}" : satellite.upper(),
-                                                        "{$YEAR}" : str(dt.year),
-                                                        "{$MONTH}": date_helper.month_str_from_int(dt.month),
-                                                        "{$DAY}": date_helper.day_str_from_int(dt.day)}, 
-                                            config_path = "../config.yaml", 
-                                            make_dirs = True)
-            
-        
-        
-        
-        '''for dt in rrule.rrule(freq=rrule.DAILY, dtstart=datetime.datetime(year=2019, month=1, day=1), until=datetime.datetime(year=2020, month=1, day=1)):
-        
-            download_from_global_config(["RBSP", "EMFISIS", "L2", "WFR_SPECTRAL_MATRIX_DIAGONAL"], 
-                                        replace = {"{$SATELLITE}" : satellite.lower(),
-                                                    "{$SATELLITE_UPPER}" : satellite.upper(),
-                                                    "{$YEAR}" : str(dt.year),
-                                                    "{$MONTH}": date_helper.month_str_from_int(dt.month),
-                                                    "{$DAY}": date_helper.day_str_from_int(dt.day)}, 
-                                        config_path = "../config.yaml", 
-                                        make_dirs = True)
-            
-            download_from_global_config(["RBSP", "EMFISIS", "L4", "WNA_SURVEY"], 
-                                        replace = {"{$SATELLITE}" : satellite.lower(),
-                                                    "{$SATELLITE_UPPER}" : satellite.upper(),
-                                                    "{$YEAR}" : str(dt.year),
-                                                    "{$MONTH}": date_helper.month_str_from_int(dt.month),
-                                                    "{$DAY}": date_helper.day_str_from_int(dt.day)}, 
-                                        config_path = "../config.yaml", 
-                                        make_dirs = True)'''
+        download_year_omni_one_hour_resolution(year = year, make_dirs = True, raw_data_dir = "./../raw_data/")

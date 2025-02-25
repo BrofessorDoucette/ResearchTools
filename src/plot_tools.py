@@ -8,10 +8,6 @@ import numpy.typing as npt
 import pandas as pd
 from collections.abc import Iterable
 import typing
-import tqdm
-
-
-OUTPUT_DIR = "./../saved_plots/"
     
 
 def plot_l_cut(refs: dict,
