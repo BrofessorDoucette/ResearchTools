@@ -19,8 +19,8 @@ import useful_irbem_wrappers as irbem
 
 if __name__ == "__main__":
 
-    year = 2013
-    sat = "a"
+    year = 2019
+    sat = "b"
     
     start_date = datetime.datetime(year = year, month = 1, day = 1)
     end_date = datetime.datetime(year = year, month = 12, day = 31, hour = 23, minute = 59, second = 59)
