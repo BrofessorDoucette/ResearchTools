@@ -75,7 +75,7 @@ def load_MPE_year(year : int) -> list:
 def load_SUPERMAG_SME_year(year : int):
 
     print(f"Began loading SUPERMAG data for year : {year}")
-    SUPERMAG_df = pd.read_csv(fr"./../chorus_neural_network/SUPERMAG_SME/sme_{year}.csv")
+    SUPERMAG_df = pd.read_csv(fr"./../processed_data/chorus_neural_network/SUPERMAG_SME/sme_{year}.csv")
     SUPERMAG = {}
 
     valid_SME = np.isfinite(SUPERMAG_df["SME"]) & (0 < SUPERMAG_df["SME"])
@@ -102,7 +102,8 @@ def load_OMNI_year(year : int) -> dict:
     print(f"Began loading OMNI data for year : {year}")
     OMNI_refs = data_loader.load_raw_data_from_config(id = ["OMNI", "ONE_MIN_RESOLUTION"], 
                                                     start = datetime.datetime(year = year, month = 1, day = 1, hour = 0, minute = 0, second = 0),
-                                                    end = datetime.datetime(year = year, month = 12, day = 31, hour = 23, minute = 59, second = 59))
+                                                    end = datetime.datetime(year = year, month = 12, day = 31, hour = 23, minute = 59, second = 59),
+                                                    root_data_dir = "./../raw_data/")
     OMNI = {}
 
     valid_times = np.isfinite(OMNI_refs["Epoch"]) & (0 < OMNI_refs["Epoch"])

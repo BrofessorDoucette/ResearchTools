@@ -5,8 +5,9 @@ saved_plots
 analysis
 daily_averages
 .idea
+config.yaml
 
 misc_images/
 posters/
-papers/
 presentations/
+ResearchPy/

@@ -368,4 +368,4 @@ if __name__ == "__main__":
     
     for year in range(2012, 2020):
         
-        download_year_omni_one_hour_resolution(year = year, make_dirs = True, raw_data_dir = "./../raw_data/")
+        download_year_omni_one_min_resolution(year = year, make_dirs = True, raw_data_dir = "./../raw_data/")
