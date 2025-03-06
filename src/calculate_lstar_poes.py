@@ -157,7 +157,7 @@ if __name__ == "__main__":
         
         data_processed[SAT["SATID"]] = {"UNIX_TIME" : SAT["UNIX_TIME"][all_valid_data],
                                         "BLC_Angle" : SAT["BLC_Angle"][all_valid_data],
-                                        "BLC_Flux" : SAT["BLC_Flux"][all_valid_data],
+                                        "BLC_Flux" : SAT["BLC_Flux"][all_valid_data, :],
                                         "MLT" : SAT["MLT"][all_valid_data],
                                         "Lstar": Lstar_interpolated[all_valid_data],
                                         "L" : SAT["lValue"][all_valid_data],

@@ -75,7 +75,7 @@ def load_MPE_year(year : int) -> list:
 def load_SUPERMAG_SME_year(year : int):
 
     print(f"Began loading SUPERMAG data for year : {year}")
-    SUPERMAG_df = pd.read_csv(f"./../processed_data_chorus_neural_network/SUPERMAG_SME/sme_{year}.csv")
+    SUPERMAG_df = pd.read_csv(fr"./../chorus_neural_network/SUPERMAG_SME/sme_{year}.csv")
     SUPERMAG = {}
 
     valid_SME = np.isfinite(SUPERMAG_df["SME"]) & (0 < SUPERMAG_df["SME"])
@@ -206,7 +206,7 @@ def find_average_SUPERMAG_and_OMNI_values_for_each_POES_data_point(POES : list,
 
 def normalize_features(FEATURE_REFS : dict, version : str):
     
-    MODEL_TRAINING_DATASET = np.load(f"./../processed_data_chorus_neural_network/STAGE_4/{version}/MODEL_READY_DATA_{version}.npz")
+    MODEL_TRAINING_DATASET = np.load(f"./../chorus_neural_network/STAGE_4/{version}/MODEL_READY_DATA_{version}.npz")
 
     MEAN_FLUX = MODEL_TRAINING_DATASET["MEAN_FLUXES"]
     STD_FLUX = MODEL_TRAINING_DATASET["STD_FLUXES"]

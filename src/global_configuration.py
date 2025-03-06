@@ -31,7 +31,7 @@ class Config:
             
         else:
 
-            self._config_path = r"/home/jddoucette/Research_Tools/config.yaml"
+            self._config_path = r"C:\Dev\Research\REPT_Enhancements_Tool\config.yaml"
     
     def load(self) -> tuple[dict, str]:
         
