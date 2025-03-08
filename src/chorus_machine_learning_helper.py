@@ -75,7 +75,7 @@ def load_MPE_year(year : int) -> list:
 def load_SUPERMAG_SME_year(year : int):
 
     print(f"Began loading SUPERMAG data for year : {year}")
-    SUPERMAG_df = pd.read_csv(fr"./../processed_data/chorus_neural_network/SUPERMAG_SME/sme_{year}.csv")
+    SUPERMAG_df = pd.read_csv(fr"./../chorus_neural_network/SUPERMAG_SME/sme_{year}.csv")
     SUPERMAG = {}
 
     valid_SME = np.isfinite(SUPERMAG_df["SME"]) & (0 < SUPERMAG_df["SME"])
@@ -87,11 +87,20 @@ def load_SUPERMAG_SME_year(year : int):
     SUPERMAG["Date_UTC"] = np.array(SUPERMAG_df["Date_UTC"][valid_SME])
     SUPERMAG["UNIX_TIME"] = astropy.time.Time(SUPERMAG["Date_UTC"].astype(str), scale="utc", in_subfmt='date_hms').unix
 
-    order = np.argsort(SUPERMAG["UNIX_TIME"])
-    SUPERMAG["SME"] = SUPERMAG["SME"][order]
-    SUPERMAG["Date_UTC"] = SUPERMAG["Date_UTC"][order]
-    SUPERMAG["UNIX_TIME"] = SUPERMAG["UNIX_TIME"][order]
+    start_interpolation_time = datetime.datetime(year = year, month = 1, day = 1).timestamp()
+    end_interpolation_time = datetime.datetime(year = year + 1, month = 1, day = 1).timestamp()
+    evenly_spaced_seconds = np.arange(start = start_interpolation_time,
+                                      stop = end_interpolation_time + 1,
+                                      step = 1)
+    
+    SUPERMAG["SME"] = np.interp(x = evenly_spaced_seconds, 
+                                xp = SUPERMAG["UNIX_TIME"], 
+                                fp = SUPERMAG["SME"])
 
+    order = np.argsort(evenly_spaced_seconds)
+    SUPERMAG["SME"] = SUPERMAG["SME"][order]
+    SUPERMAG["UNIX_TIME"] = evenly_spaced_seconds[order]
+    del SUPERMAG["Date_UTC"]
     print(f"Finished loading SUPERMAG data for year : {year}")
     
     return SUPERMAG
@@ -107,31 +116,64 @@ def load_OMNI_year(year : int) -> dict:
     OMNI = {}
 
     valid_times = np.isfinite(OMNI_refs["Epoch"]) & (0 < OMNI_refs["Epoch"])
-    valid_AVG_B = np.isfinite(OMNI_refs["F"]) & (0 <= OMNI_refs["F"]) & (OMNI_refs["F"] < 9990)
-    valid_FLOW_SPEED = np.isfinite(OMNI_refs["flow_speed"]) & (0 <= OMNI_refs["flow_speed"]) & (OMNI_refs["flow_speed"] < 99900)
-    valid_PROTON_DENSITY = np.isfinite(OMNI_refs["proton_density"]) & (-900 <= OMNI_refs["proton_density"]) & (OMNI_refs["proton_density"] < 900)
-    valid_SYM_H = np.isfinite(OMNI_refs["SYM_H"]) & (-99000 <= OMNI_refs["SYM_H"]) & (OMNI_refs["SYM_H"] < 99900)
-    valid_points = valid_times & valid_AVG_B & valid_FLOW_SPEED & valid_PROTON_DENSITY & valid_SYM_H
+    
+    OMNI["UNIX_TIME"] = cdfepoch.unixtime(OMNI_refs["Epoch"][valid_times])
+    OMNI["AVG_B"] = OMNI_refs["F"][valid_times]
+    OMNI["FLOW_SPEED"] = OMNI_refs["flow_speed"][valid_times]
+    OMNI["PROTON_DENSITY"] = OMNI_refs["proton_density"][valid_times]
+    OMNI["SYM_H"] = OMNI_refs["SYM_H"][valid_times]
+    
+    valid_AVG_B = np.isfinite(OMNI["AVG_B"]) & (0 <= OMNI["AVG_B"]) & (OMNI["AVG_B"] < 9990)
+    valid_FLOW_SPEED = np.isfinite(OMNI["FLOW_SPEED"]) & (0 <= OMNI["FLOW_SPEED"]) & (OMNI["FLOW_SPEED"] < 99900)
+    valid_PROTON_DENSITY = np.isfinite(OMNI["PROTON_DENSITY"]) & (-900 <= OMNI["PROTON_DENSITY"]) & (OMNI["PROTON_DENSITY"] < 900)
+    valid_SYM_H = np.isfinite(OMNI["SYM_H"]) & (-99000 <= OMNI["SYM_H"]) & (OMNI["SYM_H"] < 99900)
+    valid_points = valid_AVG_B & valid_FLOW_SPEED & valid_PROTON_DENSITY & valid_SYM_H
 
     if(not np.any(valid_points)):
         print(f"No valid OMNI DATA for year : {year}")
         print(f"SKIPPING YEAR : {year}")
-        
 
-    OMNI["EPOCH"] = OMNI_refs["Epoch"][valid_points]
-    OMNI["UNIX_TIME"] = cdfepoch.unixtime(OMNI_refs["Epoch"][valid_points])
-    OMNI["AVG_B"] = OMNI_refs["F"][valid_points]
-    OMNI["FLOW_SPEED"] = OMNI_refs["flow_speed"][valid_points]
-    OMNI["PROTON_DENSITY"] = OMNI_refs["proton_density"][valid_points]
-    OMNI["SYM_H"] = OMNI_refs["SYM_H"][valid_points]
-
-    order = np.argsort(OMNI["UNIX_TIME"])
-    OMNI["EPOCH"] = OMNI["EPOCH"][order]
-    OMNI["UNIX_TIME"] = OMNI["UNIX_TIME"][order]
+    OMNI["AVG_B"][~valid_points] = np.nan
+    OMNI["FLOW_SPEED"][~valid_points] = np.nan
+    OMNI["PROTON_DENSITY"][~valid_points] = np.nan
+    OMNI["SYM_H"] = OMNI["SYM_H"].astype(np.float32)
+    OMNI["SYM_H"][~valid_points] = np.nan
+    
+    if (np.max(OMNI["UNIX_TIME"][1:] - OMNI["UNIX_TIME"][:-1])) > 300:
+        raise Exception("Tried to interpolate OMNI data but large gaps that are unexpected were present!")
+    
+    start_interpolation_time = datetime.datetime(year = year, month = 1, day = 1).timestamp()
+    end_interpolation_time = datetime.datetime(year = year + 1, month = 1, day = 1).timestamp()
+    evenly_spaced_seconds = np.arange(start = start_interpolation_time,
+                                      stop = end_interpolation_time + 1,
+                                      step = 1)
+    
+    OMNI["AVG_B"] = np.interp(x = evenly_spaced_seconds, 
+                                xp = OMNI["UNIX_TIME"], 
+                                fp = OMNI["AVG_B"])
+    OMNI["FLOW_SPEED"] = np.interp(x = evenly_spaced_seconds, 
+                                xp = OMNI["UNIX_TIME"], 
+                                fp = OMNI["FLOW_SPEED"])
+    OMNI["PROTON_DENSITY"] = np.interp(x = evenly_spaced_seconds, 
+                                xp = OMNI["UNIX_TIME"], 
+                                fp = OMNI["PROTON_DENSITY"])
+    OMNI["SYM_H"] = np.interp(x = evenly_spaced_seconds, 
+                                xp = OMNI["UNIX_TIME"], 
+                                fp = OMNI["SYM_H"])
+    
+    order = np.argsort(evenly_spaced_seconds)
+    OMNI["UNIX_TIME"] = evenly_spaced_seconds[order]
     OMNI["AVG_B"] = OMNI["AVG_B"][order]
     OMNI["FLOW_SPEED"] = OMNI["FLOW_SPEED"][order]
     OMNI["PROTON_DENSITY"] = OMNI["PROTON_DENSITY"][order]
     OMNI["SYM_H"] = OMNI["SYM_H"][order]
+
+    not_nan = np.isfinite(OMNI["AVG_B"]) & np.isfinite(OMNI["FLOW_SPEED"]) & np.isfinite(OMNI["PROTON_DENSITY"]) & np.isfinite(OMNI["SYM_H"])
+    OMNI["UNIX_TIME"] = OMNI["UNIX_TIME"][not_nan]
+    OMNI["AVG_B"] = OMNI["AVG_B"][not_nan]
+    OMNI["FLOW_SPEED"] = OMNI["FLOW_SPEED"][not_nan]
+    OMNI["PROTON_DENSITY"] = OMNI["PROTON_DENSITY"][not_nan]
+    OMNI["SYM_H"] = OMNI["SYM_H"][not_nan]
 
     print(f"Finished loading OMNI data for year : {year}")
     
