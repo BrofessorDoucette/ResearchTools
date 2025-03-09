@@ -7,6 +7,12 @@ daily_averages
 .idea
 config.yaml
 
+papers/
+IRBEM/
+processed_data/
+.ipynb_checkpoints/
+.virtual_documents/
+
 misc_images/
 posters/
 presentations/
