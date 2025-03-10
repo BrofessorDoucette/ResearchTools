@@ -2,7 +2,7 @@ import enum
 
 
 class EnergyChannel(enum.Enum):
-    
+
     MeV_1_8 = 0
     MeV_2_1 = 1
     MeV_2_6 = 2
