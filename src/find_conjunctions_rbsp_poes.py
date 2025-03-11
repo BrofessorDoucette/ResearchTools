@@ -101,7 +101,7 @@ if __name__ == "__main__":
 
     # Stage 2, clean then combine RBSP, OMNI, and POES Data and find conjunctions between RBSP and POES
 
-    VERSION = "v1c"
+    VERSION = "v1d"
     FIELD_MODEL = "T89"
 
     pdata_folder = os.path.abspath("./../processed_data/chorus_neural_network/")
@@ -111,8 +111,8 @@ if __name__ == "__main__":
     output_folder = os.path.join(pdata_folder, "STAGE_2", VERSION)
 
     MAX_L_DIFF = 0.10
-    MAX_MLT_DIFF = 1.5
-    MAX_T_DIFF_SEC = 10
+    MAX_MLT_DIFF = 0.75
+    MAX_T_DIFF_SEC = 3
 
     CONJUNCTIONS_TOTAL = []
 
