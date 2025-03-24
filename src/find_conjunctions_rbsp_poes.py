@@ -16,83 +16,97 @@ def find_conjunctions(POES, RBSP, SUPERMAG, OMNI, MAX_T_DIFF_SEC, MAX_L_DIFF, MA
         MLT = POES["MLT"][T]
         FLUX_SPECTRUM = POES["BLC_Flux"][T, :]
 
+        CANDIDATE_TIMES = []
+        CANDIDATE_LSTAR = []
+        CANDIDATE_DEL_MLT = []
+        CANDIDATE_UPPER_BAND = []
+        CANDIDATE_LOWER_BAND = []
+
         for RBSP_PROBE in RBSP:
 
             TIME_RANGE = np.searchsorted(
                 a=RBSP_PROBE["UNIX_TIME"],
-                v=[(UNIX_TIME - MAX_T_DIFF_SEC), (UNIX_TIME + MAX_T_DIFF_SEC)],
+                v=[(UNIX_TIME - MAX_T_DIFF_SEC), (UNIX_TIME)],
             )
-
-            CANDIDATE_TIMES = []
-            CANDIDATE_LSTAR = []
-            CANDIDATE_DEL_MLT = []
-            CANDIDATE_UPPER_BAND = []
-            CANDIDATE_LOWER_BAND = []
 
             for POINT in range(TIME_RANGE[0], TIME_RANGE[1], 1):
 
                 DEL_LSTAR = LSTAR - RBSP_PROBE["LSTAR"][POINT]
-                DEL_MLT = np.min(
-                    [
-                        (
-                            max(MLT, RBSP_PROBE["MLT"][POINT]) - min(MLT, RBSP_PROBE["MLT"][POINT])
-                        ),
-                        (
-                            (24 - max(MLT, RBSP_PROBE["MLT"][POINT])) + (min(MLT, RBSP_PROBE["MLT"][POINT]) - 0)
-                        ),
-                    ]
-                )
 
-                if (DEL_LSTAR**2 < MAX_L_DIFF**2) and (DEL_MLT**2 < MAX_MLT_DIFF**2):
+                CROSSES_ZERO = None
 
-                    CANDIDATE_TIMES.append(RBSP_PROBE["UNIX_TIME"][POINT])
-                    CANDIDATE_LSTAR.append(RBSP_PROBE["LSTAR"][POINT])
-                    CANDIDATE_DEL_MLT.append(DEL_MLT)
-                    CANDIDATE_UPPER_BAND.append(RBSP_PROBE["UPPER_BAND"][POINT])
-                    CANDIDATE_LOWER_BAND.append(RBSP_PROBE["LOWER_BAND"][POINT])
+                DIST_1 = (max(MLT, RBSP_PROBE["MLT"][POINT]) - min(MLT, RBSP_PROBE["MLT"][POINT]))
+                DIST_2 = ((24 - max(MLT, RBSP_PROBE["MLT"][POINT])) + (min(MLT, RBSP_PROBE["MLT"][POINT]) - 0))
+                if DIST_1 < DIST_2:
+                    CROSSES_ZERO = False
+                    DEL_MLT = DIST_1
+                else:
+                    CROSSES_ZERO = True
+                    DEL_MLT = DIST_2
 
-            if len(CANDIDATE_TIMES) == 0:
-                continue
+                if (not CROSSES_ZERO) & (MLT > RBSP_PROBE["MLT"][POINT]):
 
-            TIME_RANGE = np.searchsorted(
-                a=SUPERMAG["UNIX_TIME"],
-                v=[(UNIX_TIME - MAX_T_DIFF_SEC), (UNIX_TIME + MAX_T_DIFF_SEC)],
-            )
-            AVG_SME = np.nanmean(SUPERMAG["SME"][TIME_RANGE[0] : TIME_RANGE[1]])
+                    if (DEL_LSTAR**2 < MAX_L_DIFF**2) and (DEL_MLT**2 < MAX_MLT_DIFF**2):
 
-            TIME_RANGE = np.searchsorted(
-                a=OMNI["UNIX_TIME"],
-                v=[(UNIX_TIME - MAX_T_DIFF_SEC), (UNIX_TIME + MAX_T_DIFF_SEC)],
-            )
-            AVG_AVG_B = np.nanmean(OMNI["AVG_B"][TIME_RANGE[0] : TIME_RANGE[1]])
-            AVG_FLOW_SPEED = np.nanmean(OMNI["FLOW_SPEED"][TIME_RANGE[0] : TIME_RANGE[1]])
-            AVG_PROTON_DENSITY = np.nanmean(
-                OMNI["PROTON_DENSITY"][TIME_RANGE[0] : TIME_RANGE[1]]
-            )
-            AVG_SYM_H = np.nanmean(OMNI["SYM_H"][TIME_RANGE[0] : TIME_RANGE[1]])
+                        CANDIDATE_TIMES.append(RBSP_PROBE["UNIX_TIME"][POINT])
+                        CANDIDATE_LSTAR.append(RBSP_PROBE["LSTAR"][POINT])
+                        CANDIDATE_DEL_MLT.append(DEL_MLT)
+                        CANDIDATE_UPPER_BAND.append(RBSP_PROBE["UPPER_BAND"][POINT])
+                        CANDIDATE_LOWER_BAND.append(RBSP_PROBE["LOWER_BAND"][POINT])
 
-            if (
-                np.isfinite(AVG_SME) & np.isfinite(AVG_AVG_B) & np.isfinite(AVG_FLOW_SPEED) & np.isfinite(AVG_PROTON_DENSITY) & np.isfinite(AVG_SYM_H)
-            ):
+                elif CROSSES_ZERO & (MLT < RBSP_PROBE["MLT"][POINT]):
 
-                CONJUNCTION = [
-                    UNIX_TIME,
-                    LSTAR,
-                    MLT,
-                    *FLUX_SPECTRUM,
-                    np.nanmean(CANDIDATE_TIMES),  # TIME OF RBSP POINT CHOSEN
-                    np.nanmean(CANDIDATE_LSTAR),  # LSTAR OF RBSP POINT CHOSEN
-                    np.nanmean(CANDIDATE_DEL_MLT),  # DIFFERENCE IN MLT FOUND
-                    np.nanmean(CANDIDATE_UPPER_BAND),  # UPPER BAND CHORUS OBSERVED
-                    np.nanmean(CANDIDATE_LOWER_BAND),  # LOWER BAND CHORUS OBSERVED
-                    AVG_SME,
-                    AVG_AVG_B,
-                    AVG_FLOW_SPEED,
-                    AVG_PROTON_DENSITY,
-                    AVG_SYM_H,
-                ]
+                    if (DEL_LSTAR**2 < MAX_L_DIFF**2) and (DEL_MLT**2 < MAX_MLT_DIFF**2):
 
-                CONJUNCTIONS.append(CONJUNCTION)
+                        CANDIDATE_TIMES.append(RBSP_PROBE["UNIX_TIME"][POINT])
+                        CANDIDATE_LSTAR.append(RBSP_PROBE["LSTAR"][POINT])
+                        CANDIDATE_DEL_MLT.append(DEL_MLT)
+                        CANDIDATE_UPPER_BAND.append(RBSP_PROBE["UPPER_BAND"][POINT])
+                        CANDIDATE_LOWER_BAND.append(RBSP_PROBE["LOWER_BAND"][POINT])
+
+
+        if len(CANDIDATE_TIMES) == 0:
+            continue
+
+        TIME_RANGE = np.searchsorted(
+            a=SUPERMAG["UNIX_TIME"],
+            v=[(UNIX_TIME - MAX_T_DIFF_SEC), (UNIX_TIME)],
+        )
+        AVG_SME = np.nanmean(SUPERMAG["SME"][TIME_RANGE[0] : TIME_RANGE[1]])
+
+        TIME_RANGE = np.searchsorted(
+            a=OMNI["UNIX_TIME"],
+            v=[(UNIX_TIME - MAX_T_DIFF_SEC), (UNIX_TIME)],
+        )
+        AVG_AVG_B = np.nanmean(OMNI["AVG_B"][TIME_RANGE[0] : TIME_RANGE[1]])
+        AVG_FLOW_SPEED = np.nanmean(OMNI["FLOW_SPEED"][TIME_RANGE[0] : TIME_RANGE[1]])
+        AVG_PROTON_DENSITY = np.nanmean(
+            OMNI["PROTON_DENSITY"][TIME_RANGE[0] : TIME_RANGE[1]]
+        )
+        AVG_SYM_H = np.nanmean(OMNI["SYM_H"][TIME_RANGE[0] : TIME_RANGE[1]])
+
+        if (
+            np.isfinite(AVG_SME) & np.isfinite(AVG_AVG_B) & np.isfinite(AVG_FLOW_SPEED) & np.isfinite(AVG_PROTON_DENSITY) & np.isfinite(AVG_SYM_H)
+        ):
+
+            CONJUNCTION = [
+                UNIX_TIME,
+                LSTAR,
+                np.mod(MLT - MAX_MLT_DIFF / 2.0, 24),
+                *FLUX_SPECTRUM,
+                np.nanmean(CANDIDATE_TIMES),  # TIME OF RBSP POINT CHOSEN
+                np.nanmean(CANDIDATE_LSTAR),  # LSTAR OF RBSP POINT CHOSEN
+                np.nanmean(CANDIDATE_DEL_MLT),  # DIFFERENCE IN MLT FOUND
+                np.nanmean(CANDIDATE_UPPER_BAND),  # UPPER BAND CHORUS OBSERVED
+                np.nanmean(CANDIDATE_LOWER_BAND),  # LOWER BAND CHORUS OBSERVED
+                AVG_SME,
+                AVG_AVG_B,
+                AVG_FLOW_SPEED,
+                AVG_PROTON_DENSITY,
+                AVG_SYM_H,
+            ]
+
+            CONJUNCTIONS.append(CONJUNCTION)
 
     return CONJUNCTIONS
 
@@ -101,7 +115,7 @@ if __name__ == "__main__":
 
     # Stage 2, clean then combine RBSP, OMNI, and POES Data and find conjunctions between RBSP and POES
 
-    VERSION = "v1d"
+    VERSION = "v1e"
     FIELD_MODEL = "T89"
 
     pdata_folder = os.path.abspath("./../processed_data/chorus_neural_network/")
@@ -110,9 +124,9 @@ if __name__ == "__main__":
     mpe_folder = os.path.join(pdata_folder, "STAGE_0", "MPE_DATA_PREPROCESSED_WITH_LSTAR")
     output_folder = os.path.join(pdata_folder, "STAGE_2", VERSION)
 
-    MAX_L_DIFF = 0.10
-    MAX_MLT_DIFF = 0.75
-    MAX_T_DIFF_SEC = 3
+    MAX_L_DIFF = 0.1
+    MAX_MLT_DIFF = 2.00
+    MAX_T_DIFF_SEC = 3600
 
     CONJUNCTIONS_TOTAL = []
 
@@ -197,7 +211,7 @@ if __name__ == "__main__":
         print(f"Began loading POES Data for year : {_year}")
 
         POES_REFS = np.load(
-            file=os.path.join(mpe_folder, rf"MPE_PREPROCESSED_DATA_{FIELD_MODEL}_{_year}_interpolated.npz"),
+            file=os.path.join(mpe_folder, rf"MPE_PREPROCESSED_DATA_{FIELD_MODEL}_{_year}_smoothed.npz"),
             allow_pickle=True,
         )
         POES = POES_REFS["DATA"].flatten()[0]
@@ -235,10 +249,10 @@ if __name__ == "__main__":
 
                 if work[1] >= NUMBER_OF_RECORDS:
                     CHUNK_START_T = POES[SATID]["UNIX_TIME"][work[0]] - MAX_T_DIFF_SEC
-                    CHUNK_END_T = POES[SATID]["UNIX_TIME"][-1] + MAX_T_DIFF_SEC
+                    CHUNK_END_T = POES[SATID]["UNIX_TIME"][-1]
                 else:
                     CHUNK_START_T = POES[SATID]["UNIX_TIME"][work[0]] - MAX_T_DIFF_SEC
-                    CHUNK_END_T = POES[SATID]["UNIX_TIME"][work[1]] + MAX_T_DIFF_SEC
+                    CHUNK_END_T = POES[SATID]["UNIX_TIME"][work[1]]
 
                 POES_CHUNK = {
                     "UNIX_TIME" : POES[SATID]["UNIX_TIME"][work[0] : work[1]],

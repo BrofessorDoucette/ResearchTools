@@ -156,9 +156,6 @@ def bin_3D_data(
         x_bin = x_mapping[T]
         y_bin = y_mapping[T]
 
-        if x_bin == 363:
-            pass
-
         num_points_in_each_x_y_bin[x_bin, y_bin] += 1
         sum_of_z_in_each_x_y_bin[x_bin, y_bin] += zdata[T]
 
