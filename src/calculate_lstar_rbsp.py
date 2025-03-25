@@ -13,8 +13,8 @@ import useful_irbem_wrappers as irbem
 
 if __name__ == "__main__":
 
-    year = 2019
-    sat = "b"
+    year = 2017
+    sat = "a"
 
     start_date = datetime.datetime(year=year, month=1, day=1)
     end_date = datetime.datetime(year=year, month=12, day=31, hour=23, minute=59, second=59)
@@ -25,7 +25,7 @@ if __name__ == "__main__":
         end=end_date,
         satellite=sat,
         root_data_dir=r"/project/rbsp/soc/Server/ECT/MagEphem/",
-        use_config_keys_in_subdir=False,
+        use_config_keys_in_subdir=False
     )
 
     JULIAN_DATES = MAGEPHEM["JulianDate"]
@@ -33,7 +33,10 @@ if __name__ == "__main__":
     LATITUDE = MAGEPHEM["Rgeod_LatLon"][:, 0]
     LONGITUDE = MAGEPHEM["Rgeod_LatLon"][:, 1]
     LONGITUDE[LONGITUDE < 0] += 360
+    LONGITUDE = np.mod(LONGITUDE, 360)
     L = MAGEPHEM["Lm_eq"]
+    MLAT = MAGEPHEM["EDMAG_MLAT"]
+    LSTAR_LOCAL = MAGEPHEM["Lstar"][:, 0]
 
     # Feb / 22 / 2025... should be much greater than all dates in RBSP dataset
     VALID_JULIAN_DATES = (0 < JULIAN_DATES) & (JULIAN_DATES < 2460728.5255208)
@@ -43,8 +46,8 @@ if __name__ == "__main__":
     LATITUDE = LATITUDE[VALID_JULIAN_DATES]
     LONGITUDE = LONGITUDE[VALID_JULIAN_DATES]
     L = L[VALID_JULIAN_DATES]
-
-    print(JULIAN_DATES)
+    MLAT = MLAT[VALID_JULIAN_DATES]
+    LSTAR_LOCAL = LSTAR_LOCAL[VALID_JULIAN_DATES]
 
     MAGEPHEM_TIME = astropy.time.Time(JULIAN_DATES, format="jd").unix
 
@@ -53,13 +56,17 @@ if __name__ == "__main__":
     valid_longitude = (0 <= LONGITUDE) & (LONGITUDE <= 360) & np.isfinite(LONGITUDE)
     valid_TIME = np.isfinite(MAGEPHEM_TIME)
     valid_L = (0 < L) & (L < 10000) & np.isfinite(L)
-    all_valid = valid_altitude & valid_latitude & valid_longitude & valid_TIME & valid_L
+    valid_MLAT = (-90 <= MLAT) & (MLAT <= 90) & np.isfinite(MLAT)
+    valid_LSTAR_LOCAL = (0 < LSTAR_LOCAL) & (LSTAR_LOCAL < 100) & np.isfinite(LSTAR_LOCAL)
+    all_valid = valid_altitude & valid_latitude & valid_longitude & valid_TIME & valid_L & valid_MLAT & valid_LSTAR_LOCAL
 
     MAGEPHEM_TIME = MAGEPHEM_TIME[all_valid]
     ALTITUDE = ALTITUDE[all_valid]
     LATITUDE = LATITUDE[all_valid]
     LONGITUDE = LONGITUDE[all_valid]
     L = L[all_valid]
+    MLAT = MLAT[all_valid]
+    LSTAR_LOCAL = LSTAR_LOCAL[all_valid]
 
     OMNI = data_loader.load_raw_data_from_config(
         id=["OMNI", "ONE_HOUR_RESOLUTION"],
@@ -85,7 +92,10 @@ if __name__ == "__main__":
     LATITUDE = LATITUDE[finite_kp]
     LONGITUDE = LONGITUDE[finite_kp]
     L = L[finite_kp]
+    MLAT = MLAT[finite_kp]
+    LSTAR_LOCAL = LSTAR_LOCAL[finite_kp]
     KP_INTERPOLATED = KP_INTERPOLATED[finite_kp]
+
 
     print(ALTITUDE)
     print(MAGEPHEM_TIME.shape)
@@ -93,6 +103,9 @@ if __name__ == "__main__":
     print(LATITUDE.shape)
     print(LONGITUDE.shape)
     print(L.shape)
+    print(MLAT.shape)
+    print(LSTAR_LOCAL.shape)
+    print(KP_INTERPOLATED.shape)
 
     queued_work = []
     num_processes = mp.cpu_count() - 10
@@ -150,4 +163,6 @@ if __name__ == "__main__":
         UNIX_TIME=MAGEPHEM_TIME,
         Lstar=Lstar_calculated,
         L=L,
+        MLAT=MLAT,
+        LSTAR_LOCAL=LSTAR_LOCAL
     )
