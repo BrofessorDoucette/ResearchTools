@@ -125,7 +125,7 @@ def load_OMNI_year(year: int) -> dict:
     OMNI_refs = data_loader.load_raw_data_from_config(
         id=["OMNI", "ONE_MIN_RESOLUTION"],
         start=datetime.datetime(year=year, month=1, day=1, hour=0, minute=0, second=0),
-        end=datetime.datetime(year=year, month=12, day=31, hour=23, minute=59, second=59),
+        end=datetime.datetime(year=year, month=12, day=31, hour=23, minute=59, second=59)
     )
     OMNI = {}
 

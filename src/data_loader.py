@@ -333,7 +333,7 @@ def load_raw_data_from_config(
 
     if use_config_keys_in_subdir:
 
-        if not (root_data_dir is None):
+        if (root_data_dir):
             input_dir_structure = os.path.join(os.path.abspath(os.path.dirname(root_data_dir)), *id)
         elif os.environ.get("RESEARCH_RAW_DATA_DIR"):
             input_dir_structure = os.path.join(os.environ["RESEARCH_RAW_DATA_DIR"], *id)
@@ -342,13 +342,13 @@ def load_raw_data_from_config(
 
     else:
 
-        if not (root_data_dir is None):
+        if (root_data_dir):
             input_dir_structure = os.path.abspath(os.path.dirname(root_data_dir))
         elif os.environ.get("RESEARCH_RAW_DATA_DIR"):
             input_dir_structure = os.environ["RESEARCH_RAW_DATA_DIR"]
         else:
             input_dir_structure = os.path.abspath(os.path.dirname(config_path))
-
+    
     if "subdir" in id_config:
         input_dir_structure = os.path.join(input_dir_structure, *id_config["subdir"].split("/"))
 
