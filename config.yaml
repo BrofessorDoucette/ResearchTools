@@ -88,7 +88,19 @@ RBSP:
             MLT : 0
             bsum : 0
             Buvw : 0
+            MagLat : 0
 
+      DENSITY:
+
+          subdir : "RBSP-{$SATELLITE_UPPER}/L4/{$YEAR}/{$MONTH}/{$DAY}"
+          file_glob : "rbsp-{$SATELLITE}_density_emfisis-L4_{$YEAR}{$MONTH}{$DAY}_v*.cdf"
+          variables:
+            time_variables:
+              Epoch : 0
+            time_dependent:
+              density : 0
+
+          
   MAGEPHEM:
 
     TS04D:
@@ -102,9 +114,23 @@ RBSP:
         
     T89D:
 
-      subdir : "{$SATELLITE}/{$YEAR}"
-      file_glob : "rbsp-{$SATELLITE}_mag-ephem_def-1min-t89d_{$YEAR}{$MONTH}{$DAY}*.cdf"
+      subdir : "RBSP-{$SATELLITE_UPPER}/def/{$YEAR}"
+      file_glob : "rbsp{$SATELLITE}_def_MagEphem_T89D_{$YEAR}{$MONTH}{$DAY}*.h5"
       url : "https://spdf.gsfc.nasa.gov/pub/data/rbsp/rbsp{$SATELLITE}/ephemeris/ect-mag-ephem/cdf/def-1min-t89d/{$YEAR}/"
+      variables:
+          time_variables: 
+              JulianDate : 0
+          time_dependent:
+              Lstar : 0
+              Rgeod_Height : 0
+              Rgeod_LatLon : 0
+              Lm_eq : 0
+              EDMAG_MLAT : 0
+              
+              
+              
+              
+        
 
   REPT:
 

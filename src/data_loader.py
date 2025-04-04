@@ -215,34 +215,27 @@ def load_data_files(paths: list[str], extension: str, variable_config: dict, deb
 
         for i, path in enumerate(paths):
 
-            try:
+            with cdflib.CDF(path=path) as cdf_file:
 
-                with cdflib.CDF(path=path) as cdf_file:
+                head_is_zero = (cdf_file.vdr_info(list(variable_config["time_variables"])[0]).head_vxr == 0)
+                tail_is_zero = (cdf_file.vdr_info(list(variable_config["time_variables"])[0]).last_vxr == 0)
 
-                    head_is_zero = (cdf_file.vdr_info(list(variable_config["time_variables"])[0]).head_vxr == 0)
-                    tail_is_zero = (cdf_file.vdr_info(list(variable_config["time_variables"])[0]).last_vxr == 0)
+                if (head_is_zero and tail_is_zero):
+                    continue
 
-                    if (head_is_zero and tail_is_zero):
-                        continue
+                for j, var in enumerate(variable_config["time_variables"]):
+                    t_array = np.squeeze(cdf_file.varget(variable=var))
+                    unconcatenated_arrays[var].append(t_array)
+                    if j == 0:
+                        timestamps_per_file.append(len(t_array))
 
-                    for j, var in enumerate(variable_config["time_variables"]):
-                        t_array = np.squeeze(cdf_file.varget(variable=var))
-                        unconcatenated_arrays[var].append(t_array)
-                        if j == 0:
-                            timestamps_per_file.append(len(t_array))
+                for var in variable_config["time_dependent"]:
+                    unconcatenated_arrays[var].append(cdf_file.varget(variable=var))
 
-                    for var in variable_config["time_dependent"]:
-                        unconcatenated_arrays[var].append(cdf_file.varget(variable=var))
-
-                    for var in variable_config["file_dependent"]:
-                        unconcatenated_arrays[var].append(
-                            np.expand_dims(cdf_file.varget(variable=var), axis=0)
+                for var in variable_config["file_dependent"]:
+                    unconcatenated_arrays[var].append(
+                        np.expand_dims(cdf_file.varget(variable=var), axis=0)
                         )
-            except:
-                with cdflib.CDF(path=path) as cdf_file:
-                    print(cdf_file.vdr_info("Epoch"))
-                print(path)
-                break
 
     if extension == ".h5":
 
@@ -404,4 +397,5 @@ def load_raw_data_from_config(
         extension=file_extension,
         variable_config=id_config["variables"],
         debug=debug,
+        
     )

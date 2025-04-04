@@ -28,13 +28,12 @@ def find_conjunctions(CHUNK_TIME, POES, RBSP, SME_MEAN, SME_VARIATION, OMNI, T_S
     CUM_MLT_POES = np.zeros_like(CUM_FLUX_0)
     NUM_IN_EACH_POES_BIN = np.zeros_like(CUM_FLUX_0)
 
-    CUM_LOWER_BAND_CHORUS_RBSP = np.zeros(shape=(L_EDGES.shape[0], MLT_EDGES.shape[0], MLAT_EDGES.shape[0]))
-    CUM_UPPER_BAND_CHORUS_RBSP = np.zeros_like(CUM_LOWER_BAND_CHORUS_RBSP)
-    CUM_L_RBSP = np.zeros_like(CUM_LOWER_BAND_CHORUS_RBSP)
-    CUM_MLT_RBSP = np.zeros_like(CUM_LOWER_BAND_CHORUS_RBSP)
-    CUM_MLAT_RBSP = np.zeros_like(CUM_LOWER_BAND_CHORUS_RBSP)
-    CUM_DENSITY_RBSP = np.zeros_like(CUM_LOWER_BAND_CHORUS_RBSP)
-    NUM_IN_EACH_RBSP_BIN = np.zeros_like(CUM_LOWER_BAND_CHORUS_RBSP)
+    CUM_CHORUS_RBSP = np.zeros(shape=(L_EDGES.shape[0], MLT_EDGES.shape[0], MLAT_EDGES.shape[0]))
+    CUM_L_RBSP = np.zeros_like(CUM_CHORUS_RBSP)
+    CUM_MLT_RBSP = np.zeros_like(CUM_CHORUS_RBSP)
+    CUM_MLAT_RBSP = np.zeros_like(CUM_CHORUS_RBSP)
+    CUM_DENSITY_RBSP = np.zeros_like(CUM_CHORUS_RBSP)
+    NUM_IN_EACH_RBSP_BIN = np.zeros_like(CUM_CHORUS_RBSP)
 
     for SATID in POES:
 
@@ -70,8 +69,7 @@ def find_conjunctions(CHUNK_TIME, POES, RBSP, SME_MEAN, SME_VARIATION, OMNI, T_S
             y_bin = MLT_mapping[T]
             z_bin = MLAT_mapping[T]
 
-            CUM_LOWER_BAND_CHORUS_RBSP[x_bin, y_bin, z_bin] += PROBE["LOWER_BAND"][T]
-            CUM_UPPER_BAND_CHORUS_RBSP[x_bin, y_bin, z_bin] += PROBE["UPPER_BAND"][T]
+            CUM_CHORUS_RBSP[x_bin, y_bin, z_bin] += PROBE["CHORUS"][T]
             CUM_L_RBSP[x_bin, y_bin, z_bin] += PROBE["L"][T]
             CUM_MLT_RBSP[x_bin, y_bin, z_bin] += PROBE["MLT"][T]
             CUM_MLAT_RBSP[x_bin, y_bin, z_bin] += PROBE["MLAT"][T]
@@ -89,8 +87,7 @@ def find_conjunctions(CHUNK_TIME, POES, RBSP, SME_MEAN, SME_VARIATION, OMNI, T_S
     AVG_L_POES = CUM_L_POES / NUM_IN_EACH_POES_BIN
     AVG_MLT_POES = CUM_MLT_POES / NUM_IN_EACH_POES_BIN
 
-    AVG_LOWER_CHORUS = CUM_LOWER_BAND_CHORUS_RBSP / NUM_IN_EACH_RBSP_BIN
-    AVG_UPPER_CHORUS = CUM_UPPER_BAND_CHORUS_RBSP / NUM_IN_EACH_RBSP_BIN
+    AVG_CHORUS = CUM_CHORUS_RBSP / NUM_IN_EACH_RBSP_BIN
     AVG_L_RBSP = CUM_L_RBSP / NUM_IN_EACH_RBSP_BIN
     AVG_MLT_RBSP = CUM_MLT_RBSP / NUM_IN_EACH_RBSP_BIN
     AVG_MLAT_RBSP = CUM_MLAT_RBSP / NUM_IN_EACH_RBSP_BIN
@@ -123,8 +120,7 @@ def find_conjunctions(CHUNK_TIME, POES, RBSP, SME_MEAN, SME_VARIATION, OMNI, T_S
                         AVG_L_RBSP[x_bin, y_bin, z_bin],  # LSTAR OF RBSP POINT CHOSEN
                         AVG_MLT_RBSP[x_bin, y_bin, z_bin],  # DIFFERENCE IN MLT FOUND
                         AVG_MLAT_RBSP[x_bin, y_bin, z_bin],
-                        AVG_UPPER_CHORUS[x_bin, y_bin, z_bin],  # UPPER BAND CHORUS OBSERVED
-                        AVG_LOWER_CHORUS[x_bin, y_bin, z_bin],  # LOWER BAND CHORUS OBSERVED
+                        AVG_CHORUS[x_bin, y_bin, z_bin],  # CHORUS OBSERVED
                         AVG_DENSITY_RBSP[x_bin, y_bin, z_bin],
                         SME_MEAN,
                         SME_VARIATION,
@@ -143,8 +139,9 @@ if __name__ == "__main__":
 
     # Stage 2, clean then combine RBSP, OMNI, and POES Data and find conjunctions between RBSP and POES
 
-    VERSION = "v3"
+    VERSION = "v4"
     FIELD_MODEL = "T89"
+    MODEL_TYPE = "LOWER_BAND"
 
     pdata_folder = os.path.abspath("./../processed_data/chorus_neural_network/")
     rbsp_chorus_folder = os.path.join(pdata_folder, "STAGE_1", "DENSITY_AND_CHORUS")
@@ -160,7 +157,7 @@ if __name__ == "__main__":
     L_MAX = 9
     MLAT_MIN = -20
     MLAT_MAX = 20
-    SME_VARIATION_WINDOW_MULTIPLIER = 3
+    SME_VARIATION_WINDOW_MULTIPLIER = 4
 
     CONJUNCTIONS_TOTAL = []
 
@@ -168,91 +165,63 @@ if __name__ == "__main__":
 
         print(f"Began processing year : {_year}")
 
-        # LOAD THE OBSERVED CHORUS
-        print(f"Began loading RBSP Data for year: {_year}")
-        refs = np.load(
-            file=os.path.join(rbsp_chorus_folder, rf"RBSP_EMFISIS_CHORUS_AND_DENSITY_{_year}.npz"),
-            allow_pickle=True,
-        )
-        RBSP_A = {}
-        RBSP_A["UNIX_TIME"] = refs["UNIX_TIME_A"]
-        RBSP_A["MLT"] = refs["MLT_A"]
-        RBSP_A["MLAT"] = refs["MAGLAT_A"]
-        RBSP_A["L"] = refs["L_A"]
-        RBSP_A["LOWER_BAND"] = refs["LOWER_BAND_CHORUS_A"]
-        RBSP_A["UPPER_BAND"] = refs["UPPER_BAND_CHORUS_A"]
-        RBSP_A["DENSITY"] = refs["DENSITY_A"]
+        RBSP = []
 
-        RBSP_B = {}
-        RBSP_B["UNIX_TIME"] = refs["UNIX_TIME_B"]
-        RBSP_B["MLT"] = refs["MLT_B"]
-        RBSP_B["MLAT"] = refs["MAGLAT_B"]
-        RBSP_B["L"] = refs["L_B"]
-        RBSP_B["LOWER_BAND"] = refs["LOWER_BAND_CHORUS_B"]
-        RBSP_B["UPPER_BAND"] = refs["UPPER_BAND_CHORUS_B"]
-        RBSP_B["DENSITY"] = refs["DENSITY_B"]
+        for SATID in ["A", "B"]:
 
-        refs.close()
+            # LOAD THE OBSERVED CHORUS
+            print(f"Began loading RBSP Data for year: {_year}")
+            refs = np.load(
+                file=os.path.join(rbsp_chorus_folder, rf"RBSP_EMFISIS_CHORUS_AND_DENSITY_{_year}_{SATID}_{MODEL_TYPE}.npz"),
+                allow_pickle=True,
+            )
+            PROBE = {}
+            PROBE["UNIX_TIME"] = refs["UNIX_TIME"]
+            PROBE["MLT"] = refs["MLT"]
+            PROBE["MLAT"] = refs["MLAT"]
+            PROBE["L"] = refs["L"]
+            PROBE["CHORUS"] = refs["CHORUS"]
+            PROBE["DENSITY"] = refs["DENSITY"]
 
-        order_A = np.argsort(RBSP_A["UNIX_TIME"])
-        order_B = np.argsort(RBSP_B["UNIX_TIME"])
+            refs.close()
 
-        RBSP_A["UNIX_TIME"] = RBSP_A["UNIX_TIME"][order_A]
-        RBSP_A["MLT"] = RBSP_A["MLT"][order_A]
-        RBSP_A["L"] = RBSP_A["L"][order_A]
-        RBSP_A["MLAT"] = RBSP_A["MLAT"][order_A]
-        RBSP_A["LOWER_BAND"] = RBSP_A["LOWER_BAND"][order_A]
-        RBSP_A["UPPER_BAND"] = RBSP_A["UPPER_BAND"][order_A]
-        RBSP_A["DENSITY"] = RBSP_A["DENSITY"][order_A]
+            print(f"\nRBSP-{SATID} SHAPES BEFORE PREPROCESSING:")
+            print(PROBE["UNIX_TIME"].shape)
+            print(PROBE["MLT"].shape)
+            print(PROBE["L"].shape)
+            print(PROBE["MLAT"].shape)
+            print(PROBE["CHORUS"].shape)
+            print(PROBE["DENSITY"].shape)
 
-        RBSP_B["UNIX_TIME"] = RBSP_B["UNIX_TIME"][order_B]
-        RBSP_B["MLT"] = RBSP_B["MLT"][order_B]
-        RBSP_B["L"] = RBSP_B["L"][order_B]
-        RBSP_B["MLAT"] = RBSP_B["MLAT"][order_B]
-        RBSP_B["LOWER_BAND"] = RBSP_B["LOWER_BAND"][order_B]
-        RBSP_B["UPPER_BAND"] = RBSP_B["UPPER_BAND"][order_B]
-        RBSP_B["DENSITY"] = RBSP_B["DENSITY"][order_B]
+            order = np.argsort(PROBE["UNIX_TIME"])
+            PROBE["UNIX_TIME"] = PROBE["UNIX_TIME"][order]
+            PROBE["MLT"] = PROBE["MLT"][order]
+            PROBE["L"] = PROBE["L"][order]
+            PROBE["MLAT"] = PROBE["MLAT"][order]
+            PROBE["CHORUS"] = PROBE["CHORUS"][order]
+            PROBE["DENSITY"] = PROBE["DENSITY"][order]
 
-        between_bins_A = (L_MIN <= RBSP_A["L"]) & (RBSP_A["L"] < L_MAX) & (0 <= RBSP_A["MLT"]) & (RBSP_A["MLT"] < 24) & (-20 <= RBSP_A["MLAT"]) & (RBSP_A["MLAT"] < 20)
-        between_bins_B = (L_MIN <= RBSP_B["L"]) & (RBSP_B["L"] < L_MAX) & (0 <= RBSP_B["MLT"]) & (RBSP_B["MLT"] < 24) & (-20 <= RBSP_B["MLAT"]) & (RBSP_B["MLAT"] < 20)
-        outside_plasmasphere_A = (RBSP_A["DENSITY"] <= 100)
-        outside_plasmasphere_B = (RBSP_B["DENSITY"] <= 100)
+            between_bins = (L_MIN <= PROBE["L"]) & (PROBE["L"] < L_MAX) & (0 <= PROBE["MLT"]) & (PROBE["MLT"] < 24) & (-20 <= PROBE["MLAT"]) & (PROBE["MLAT"] < 20)
+            outside_plasmasphere = (PROBE["DENSITY"] <= 100)
+            nonzero_chorus = (PROBE["CHORUS"] > 0)
 
-        RBSP_A["UNIX_TIME"] = RBSP_A["UNIX_TIME"][between_bins_A & outside_plasmasphere_A]
-        RBSP_A["MLT"] = RBSP_A["MLT"][between_bins_A & outside_plasmasphere_A]
-        RBSP_A["L"] = RBSP_A["L"][between_bins_A & outside_plasmasphere_A]
-        RBSP_A["MLAT"] = RBSP_A["MLAT"][between_bins_A & outside_plasmasphere_A]
-        RBSP_A["LOWER_BAND"] = RBSP_A["LOWER_BAND"][between_bins_A & outside_plasmasphere_A]
-        RBSP_A["UPPER_BAND"] = RBSP_A["UPPER_BAND"][between_bins_A & outside_plasmasphere_A]
-        RBSP_A["DENSITY"] = RBSP_A["DENSITY"][between_bins_A & outside_plasmasphere_A]
+            PROBE["UNIX_TIME"] = PROBE["UNIX_TIME"][between_bins & outside_plasmasphere & nonzero_chorus]
+            PROBE["MLT"] = PROBE["MLT"][between_bins & outside_plasmasphere & nonzero_chorus]
+            PROBE["L"] = PROBE["L"][between_bins & outside_plasmasphere & nonzero_chorus]
+            PROBE["MLAT"] = PROBE["MLAT"][between_bins & outside_plasmasphere & nonzero_chorus]
+            PROBE["CHORUS"] = PROBE["CHORUS"][between_bins & outside_plasmasphere & nonzero_chorus]
+            PROBE["DENSITY"] = PROBE["DENSITY"][between_bins & outside_plasmasphere & nonzero_chorus]
 
-        print("RBSP-A SHAPES")
-        print(RBSP_A["UNIX_TIME"].shape)
-        print(RBSP_A["MLT"].shape)
-        print(RBSP_A["L"].shape)
-        print(RBSP_A["MLAT"].shape)
-        print(RBSP_A["LOWER_BAND"].shape)
-        print(RBSP_A["UPPER_BAND"].shape)
-        print(RBSP_A["DENSITY"].shape)
+            print(f"\nRBSP-{SATID} SHAPES AFTER REMOVING POINTS OUTSIDE BINS, INSIDE PLASMASPHERE, AND WITH ZERO CHORUS:")
+            print(PROBE["UNIX_TIME"].shape)
+            print(PROBE["MLT"].shape)
+            print(PROBE["L"].shape)
+            print(PROBE["MLAT"].shape)
+            print(PROBE["CHORUS"].shape)
+            print(PROBE["DENSITY"].shape)
 
-        RBSP_B["UNIX_TIME"] = RBSP_B["UNIX_TIME"][between_bins_B & outside_plasmasphere_B]
-        RBSP_B["MLT"] = RBSP_B["MLT"][between_bins_B & outside_plasmasphere_B]
-        RBSP_B["L"] = RBSP_B["L"][between_bins_B & outside_plasmasphere_B]
-        RBSP_B["MLAT"] = RBSP_B["MLAT"][between_bins_B & outside_plasmasphere_B]
-        RBSP_B["LOWER_BAND"] = RBSP_B["LOWER_BAND"][between_bins_B & outside_plasmasphere_B]
-        RBSP_B["UPPER_BAND"] = RBSP_B["UPPER_BAND"][between_bins_B & outside_plasmasphere_B]
-        RBSP_B["DENSITY"] = RBSP_B["DENSITY"][between_bins_B & outside_plasmasphere_B]
+            RBSP.append(PROBE)
 
-        print("RBSP-B SHAPES")
-        print(RBSP_B["UNIX_TIME"].shape)
-        print(RBSP_B["MLT"].shape)
-        print(RBSP_B["L"].shape)
-        print(RBSP_B["MLAT"].shape)
-        print(RBSP_B["LOWER_BAND"].shape)
-        print(RBSP_B["UPPER_BAND"].shape)
-        print(RBSP_B["DENSITY"].shape)
-
-        RBSP = [RBSP_A, RBSP_B]
         print(f"RBSP Data loaded for year : {_year}")
 
         print(f"Began loading POES Data for year : {_year}")
@@ -325,8 +294,7 @@ if __name__ == "__main__":
                     "MLT" : RBSP_PROBE["MLT"][TIME_RANGE_RBSP[0] : TIME_RANGE_RBSP[1]],
                     "L" : RBSP_PROBE["L"][TIME_RANGE_RBSP[0] : TIME_RANGE_RBSP[1]],
                     "MLAT" : RBSP_PROBE["MLAT"][TIME_RANGE_RBSP[0] : TIME_RANGE_RBSP[1]],
-                    "LOWER_BAND" : RBSP_PROBE["LOWER_BAND"][TIME_RANGE_RBSP[0] : TIME_RANGE_RBSP[1]],
-                    "UPPER_BAND" : RBSP_PROBE["UPPER_BAND"][TIME_RANGE_RBSP[0] : TIME_RANGE_RBSP[1]],
+                    "CHORUS" : RBSP_PROBE["CHORUS"][TIME_RANGE_RBSP[0] : TIME_RANGE_RBSP[1]],
                     "DENSITY" : RBSP_PROBE["DENSITY"][TIME_RANGE_RBSP[0] : TIME_RANGE_RBSP[1]]
                 }
 
@@ -406,6 +374,6 @@ if __name__ == "__main__":
     print(f"Conjunctions to be saved: {CONJUNCTIONS_TO_BE_SAVED.shape}")
 
     np.savez(
-        file=os.path.join(output_folder, f"CONJUNCTIONS_{VERSION}_{FIELD_MODEL}.npz"),
+        file=os.path.join(output_folder, f"CONJUNCTIONS_{VERSION}_{FIELD_MODEL}_{MODEL_TYPE}.npz"),
         CONJUNCTIONS=CONJUNCTIONS_TO_BE_SAVED,
     )

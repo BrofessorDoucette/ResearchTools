@@ -5,7 +5,7 @@ saved_plots
 analysis
 daily_averages
 .idea
-./config.yaml
+config.yaml
 ./config*
 
 papers/
