@@ -8,6 +8,13 @@ def emfisis_noise_floor(f):
 
     return np.exp(np.interp(np.log(f), np.log(x), np.log(y), left=np.nan, right=np.nan))
 
+def emfisis_planarity_floor(f):
+
+    x = [1, 10, 30, 100, 300, 1000, 3000, 10000]
+    y = [1.0, 0.95, 0.90, 0.8, 0.6, 0.40, 0.25, 0.25]
+
+    return np.interp(np.log(f), np.log(x), y, left=np.nan, right=np.nan)
+
 
 def calculate_chorus_amplitudes_from_bsum(B_uvw, B_sum, WFR_bandwidths, WFR_frequencies) -> tuple:
 

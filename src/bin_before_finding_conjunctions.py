@@ -53,7 +53,7 @@ def find_conjunctions(CHUNK_TIME, POES, RBSP, SME_MEAN, SME_VARIATION, OMNI, T_S
             CUM_FLUX_5[x_bin, y_bin] += POES[SATID]["BLC_Flux"][T, 5]
             CUM_FLUX_6[x_bin, y_bin] += POES[SATID]["BLC_Flux"][T, 6]
             CUM_FLUX_7[x_bin, y_bin] += POES[SATID]["BLC_Flux"][T, 7]
-            CUM_L_POES[x_bin, y_bin] += POES[SATID]["LSTAR"][T]
+            CUM_L_POES[x_bin, y_bin] += POES[SATID]["L"][T]
             CUM_MLT_POES[x_bin, y_bin] += POES[SATID]["MLT"][T]
             NUM_IN_EACH_POES_BIN[x_bin, y_bin] += 1
 
@@ -150,14 +150,14 @@ if __name__ == "__main__":
     output_folder = os.path.join(pdata_folder, "STAGE_2", VERSION)
 
     T_SIZE = 900
-    L_SIZE = 0.05
+    L_SIZE = 0.025
     MLT_SIZE = 2.0
     MLAT_SIZE = 1.0
     L_MIN = 2.0
     L_MAX = 9
     MLAT_MIN = -20
     MLAT_MAX = 20
-    SME_VARIATION_WINDOW_MULTIPLIER = 4
+    SME_VARIATION_WINDOW_MULTIPLIER = 8
 
     CONJUNCTIONS_TOTAL = []
 
