@@ -133,7 +133,10 @@ def bin_3D_data(
     y_bin_edges = [ystart + j * ystep for j in range((int((yend - ystart) / ystep) + 1))]
 
     indices_needed = (
-        (x_bin_edges[0] < xdata) & (xdata < x_bin_edges[-1]) & (y_bin_edges[0] < ydata) & (ydata < y_bin_edges[-1])
+        (x_bin_edges[0] < xdata)
+        & (xdata < x_bin_edges[-1])
+        & (y_bin_edges[0] < ydata)
+        & (ydata < y_bin_edges[-1])
     )
 
     xdata = xdata[indices_needed]
@@ -160,3 +163,44 @@ def bin_3D_data(
         sum_of_z_in_each_x_y_bin[x_bin, y_bin] += zdata[T]
 
     return sum_of_z_in_each_x_y_bin, num_points_in_each_x_y_bin
+
+
+def create_conditional_probability_plot(list1, list2, bins=10):
+    """
+    Create a 2D conditional probability plot (heatmap) from two lists.
+
+    Parameters:
+    list1 (list): First input list
+    list2 (list): Second input list, related to list1 by indices
+    bins (int): Number of bins for the histogram (default: 10)
+    """
+    # Convert lists to numpy arrays
+    x = np.array(list1)
+    y = np.array(list2)
+
+    # Create 2D histogram
+    hist, xedges, yedges = np.histogram2d(x, y, bins=bins, density=True)
+
+    # Normalize to get conditional probability P(y|x)
+    hist = hist / np.sum(hist, axis=1, keepdims=True)
+
+    # Create mesh for plotting
+    X, Y = np.meshgrid(xedges[:-1], yedges[:-1])
+
+    # Create the plot
+    plt.figure(figsize=(8, 6))
+    plt.imshow(
+        hist.T,
+        origin="lower",
+        extent=[xedges[0], xedges[-1], yedges[0], yedges[-1]],
+        cmap="viridis",
+        interpolation="nearest",
+    )
+    plt.colorbar(label="Conditional Probability P(y|x)")
+    plt.xlabel("X (List 1)")
+    plt.ylabel("Y (List 2)")
+    plt.title("2D Conditional Probability Plot")
+
+    # Save the plot
+    plt.savefig("conditional_probability_plot.png")
+    plt.close()
