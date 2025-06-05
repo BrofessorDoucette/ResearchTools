@@ -144,20 +144,17 @@ if __name__ == "__main__":
     MODEL_TYPE = "LOWER_BAND"
 
     pdata_folder = os.path.abspath("./../processed_data/chorus_neural_network/")
-    rbsp_chorus_folder = os.path.join(pdata_folder, "STAGE_1", "DENSITY_AND_CHORUS")
-    rbsp_lstar_folder = os.path.join(pdata_folder, "STAGE_1", "Lstar")
-    mpe_folder = os.path.join(pdata_folder, "STAGE_0", "MPE_DATA_PREPROCESSED_WITH_LSTAR")
-    output_folder = os.path.join(pdata_folder, "STAGE_2", VERSION)
+    rbsp_chorus_folder = os.path.join(pdata_folder, "observed_chorus")
+    output_folder = os.path.join(pdata_folder, VERSION)
 
-    T_SIZE = 900
-    L_SIZE = 0.025
-    MLT_SIZE = 2.0
+    T_SIZE = 300
+    L_SIZE = 0.050
+    MLT_SIZE = 1.0
     MLAT_SIZE = 1.0
     L_MIN = 2.0
     L_MAX = 9
     MLAT_MIN = -20
     MLAT_MAX = 20
-    SME_VARIATION_WINDOW_MULTIPLIER = 8
 
     CONJUNCTIONS_TOTAL = []
 
@@ -172,7 +169,7 @@ if __name__ == "__main__":
             # LOAD THE OBSERVED CHORUS
             print(f"Began loading RBSP Data for year: {_year}")
             refs = np.load(
-                file=os.path.join(rbsp_chorus_folder, rf"RBSP_EMFISIS_CHORUS_AND_DENSITY_{_year}_{SATID}_{MODEL_TYPE}.npz"),
+                file=os.path.join(rbsp_chorus_folder, rf"observed_chorus_{_year}_{SATID}_{MODEL_TYPE}.npz"),
                 allow_pickle=True,
             )
             PROBE = {}
@@ -199,7 +196,6 @@ if __name__ == "__main__":
             PROBE["L"] = PROBE["L"][order]
             PROBE["MLAT"] = PROBE["MLAT"][order]
             PROBE["CHORUS"] = PROBE["CHORUS"][order]
-            PROBE["DENSITY"] = PROBE["DENSITY"][order]
 
             between_bins = (L_MIN <= PROBE["L"]) & (PROBE["L"] < L_MAX) & (0 <= PROBE["MLT"]) & (PROBE["MLT"] < 24) & (-20 <= PROBE["MLAT"]) & (PROBE["MLAT"] < 20)
             outside_plasmasphere = (PROBE["DENSITY"] <= 100)
@@ -210,7 +206,6 @@ if __name__ == "__main__":
             PROBE["L"] = PROBE["L"][between_bins & outside_plasmasphere & nonzero_chorus]
             PROBE["MLAT"] = PROBE["MLAT"][between_bins & outside_plasmasphere & nonzero_chorus]
             PROBE["CHORUS"] = PROBE["CHORUS"][between_bins & outside_plasmasphere & nonzero_chorus]
-            PROBE["DENSITY"] = PROBE["DENSITY"][between_bins & outside_plasmasphere & nonzero_chorus]
 
             print(f"\nRBSP-{SATID} SHAPES AFTER REMOVING POINTS OUTSIDE BINS, INSIDE PLASMASPHERE, AND WITH ZERO CHORUS:")
             print(PROBE["UNIX_TIME"].shape)
@@ -218,7 +213,6 @@ if __name__ == "__main__":
             print(PROBE["L"].shape)
             print(PROBE["MLAT"].shape)
             print(PROBE["CHORUS"].shape)
-            print(PROBE["DENSITY"].shape)
 
             RBSP.append(PROBE)
 
@@ -226,11 +220,7 @@ if __name__ == "__main__":
 
         print(f"Began loading POES Data for year : {_year}")
 
-        POES_REFS = np.load(
-            file=os.path.join(mpe_folder, rf"MPE_PREPROCESSED_DATA_{FIELD_MODEL}_{_year}_interpolated.npz"),
-            allow_pickle=True,
-        )
-        POES = POES_REFS["DATA"].flatten()[0]
+        chorus_machine_learning_helper.load_MPE
 
         for SATID in POES:
 
@@ -295,7 +285,6 @@ if __name__ == "__main__":
                     "L" : RBSP_PROBE["L"][TIME_RANGE_RBSP[0] : TIME_RANGE_RBSP[1]],
                     "MLAT" : RBSP_PROBE["MLAT"][TIME_RANGE_RBSP[0] : TIME_RANGE_RBSP[1]],
                     "CHORUS" : RBSP_PROBE["CHORUS"][TIME_RANGE_RBSP[0] : TIME_RANGE_RBSP[1]],
-                    "DENSITY" : RBSP_PROBE["DENSITY"][TIME_RANGE_RBSP[0] : TIME_RANGE_RBSP[1]]
                 }
 
                 RBSP_CHUNK.append(RBSP_PROBE_CHUNK)
