@@ -5,6 +5,7 @@ import numpy as np
 import astropy.time
 import pandas as pd
 import tqdm
+import os
 
 
 def load_MPE_year(year: int) -> list:
@@ -31,8 +32,8 @@ def load_MPE_year(year: int) -> list:
                 0 < POES_sat_refs["BLC_Angle"]
             )
             valid_BLC_Flux = np.all(
-                np.isfinite(POES_sat_refs["BLC_Flux"][:, :8]), axis=1
-            ) & np.all((0 < POES_sat_refs["BLC_Flux"][:, :8]), axis=1)
+                np.isfinite(POES_sat_refs["BLC_Flux"][:, :]), axis=1
+            ) & np.all((0 < POES_sat_refs["BLC_Flux"][:, :]), axis=1)
             valid_MLT = (
                 np.isfinite(POES_sat_refs["MLT"]) & (0 < POES_sat_refs["MLT"]) & (POES_sat_refs["MLT"] < 24)
             )
@@ -54,7 +55,7 @@ def load_MPE_year(year: int) -> list:
 
                 POES_sat_refs["time"] = POES_sat_refs["time"][valid_points]
                 POES_sat_refs["BLC_Angle"] = POES_sat_refs["BLC_Angle"][valid_points]
-                POES_sat_refs["BLC_Flux"] = POES_sat_refs["BLC_Flux"][valid_points, :8]
+                POES_sat_refs["BLC_Flux"] = POES_sat_refs["BLC_Flux"][valid_points, :]
                 POES_sat_refs["MLT"] = POES_sat_refs["MLT"][valid_points]
                 POES_sat_refs["lValue"] = POES_sat_refs["lValue"][valid_points]
                 POES_sat_refs["geogLat"] = POES_sat_refs["geogLat"][valid_points]
@@ -73,7 +74,7 @@ def load_MPE_year(year: int) -> list:
                 POES_sat_refs["BLC_Angle"] = POES_sat_refs["BLC_Angle"][order]
                 POES_sat_refs["BLC_Flux"] = POES_sat_refs["BLC_Flux"][order, :]
                 POES_sat_refs["MLT"] = POES_sat_refs["MLT"][order]
-                POES_sat_refs["lValue"] = POES_sat_refs["lValue"][order]
+                POES_sat_refs["L"] = POES_sat_refs["lValue"][order]
                 POES_sat_refs["geogLat"] = POES_sat_refs["geogLat"][order]
                 POES_sat_refs["geogLon"] = POES_sat_refs["geogLon"][order]
                 POES_sat_refs["SATID"] = SAT
@@ -104,15 +105,9 @@ def load_SUPERMAG_SME_year(year: int):
         SUPERMAG["Date_UTC"].astype(str), scale="utc", in_subfmt="date_hms"
     ).unix
 
-    start_interpolation_time = datetime.datetime(year=year, month=1, day=1).timestamp()
-    end_interpolation_time = datetime.datetime(year=year + 1, month=1, day=1).timestamp()
-    evenly_spaced_seconds = np.arange(start=start_interpolation_time, stop=end_interpolation_time + 1, step=1)
-
-    SUPERMAG["SME"] = np.interp(x=evenly_spaced_seconds, xp=SUPERMAG["UNIX_TIME"], fp=SUPERMAG["SME"])
-
-    order = np.argsort(evenly_spaced_seconds)
+    order = np.argsort(SUPERMAG["UNIX_TIME"])
     SUPERMAG["SME"] = SUPERMAG["SME"][order]
-    SUPERMAG["UNIX_TIME"] = evenly_spaced_seconds[order]
+    SUPERMAG["UNIX_TIME"] = SUPERMAG["UNIX_TIME"][order]
     del SUPERMAG["Date_UTC"]
     print(f"Finished loading SUPERMAG data for year : {year}")
 
@@ -189,121 +184,83 @@ def load_OMNI_year(year: int) -> dict:
 
     return OMNI
 
+def find_max_in_last_12h(timestamps, values):
+    """
+    Find the maximum value in the preceding 24 hours for each timestamp.
 
-def find_average_SUPERMAG_and_OMNI_values_for_each_POES_data_point(
-    POES: list, SUPERMAG: dict, OMNI: dict
-) -> dict:
+    Args:
+        timestamps: List of Unix timestamps (in seconds)
+        values: List of corresponding values
 
-    POES_UNIX_TIMES = []
-    POES_L_VALUES = []
-    POES_MLT_VALUES = []
-    POES_FLUX_SPECTRUM = []
+    Returns:
+        List of maximum values for each timestamp, considering the previous 24 hours
+    """
+    if len(timestamps) != len(values):
+        raise ValueError("Timestamps and values arrays must have the same length")
 
-    for P in POES:
+    result = np.zeros_like(timestamps)
+    result[:] = np.nan
+    # 12 hours in seconds
+    twenty_four_hours = 12 * 60 * 60
 
-        POES_UNIX_TIMES.append(P["UNIX_TIME"])
-        POES_L_VALUES.append(P["lValue"])
-        POES_MLT_VALUES.append(P["MLT"])
-        POES_FLUX_SPECTRUM.append(P["BLC_Flux"])
+    for i, current_time in enumerate(timestamps):
+        # Find all values within the last 24 hours
+        within_window = ((current_time - twenty_four_hours) <= timestamps) & (timestamps <= current_time)
+        window_values = values[within_window]
 
-    POES_UNIX_TIMES = np.hstack(POES_UNIX_TIMES)
-    POES_L_VALUES = np.hstack(POES_L_VALUES)
-    POES_MLT_VALUES = np.hstack(POES_MLT_VALUES)
-    POES_FLUX_SPECTRUM = np.vstack(POES_FLUX_SPECTRUM)
+        if np.any(np.isnan(window_values)):
+            continue
 
-    POES_TIMES_OF_FEATURES = []
-    L_FEATURES = []
-    MLT_FEATURES = []
-    FLUX_SPECTRUM_FEATURES = []
-    SME_FEATURES = []
-    B_FEATURES = []
-    FLOW_SPEED_FEATURES = []
-    PROTON_DENSITY_FEATURES = []
-    SYM_H_FEATURES = []
+        # If no values in the window, append None or handle as needed
+        result[i] = np.max(window_values)
 
-    for idx, T in tqdm.tqdm(enumerate(POES_UNIX_TIMES)):
-
-        TIME_RANGE = np.searchsorted(a=SUPERMAG["UNIX_TIME"], v=[(T - 60), (T + 60)])
-        AVG_SME = np.nanmean(SUPERMAG["SME"][TIME_RANGE[0] : TIME_RANGE[1]])
-
-        TIME_RANGE = np.searchsorted(a=OMNI["UNIX_TIME"], v=[(T - 60), (T + 60)])
-        AVG_AVG_B = np.nanmean(OMNI["AVG_B"][TIME_RANGE[0] : TIME_RANGE[1]])
-        AVG_FLOW_SPEED = np.nanmean(OMNI["FLOW_SPEED"][TIME_RANGE[0] : TIME_RANGE[1]])
-        AVG_PROTON_DENSITY = np.nanmean(OMNI["PROTON_DENSITY"][TIME_RANGE[0] : TIME_RANGE[1]])
-        AVG_SYM_H = np.nanmean(OMNI["SYM_H"][TIME_RANGE[0] : TIME_RANGE[1]])
-
-        if (
-            np.isfinite(AVG_SME) & np.isfinite(AVG_AVG_B) & np.isfinite(AVG_FLOW_SPEED) & np.isfinite(AVG_PROTON_DENSITY) & np.isfinite(AVG_SYM_H)
-        ):
-
-            POES_TIMES_OF_FEATURES.append(POES_UNIX_TIMES[idx])
-            L_FEATURES.append(POES_L_VALUES[idx])
-            MLT_FEATURES.append(POES_MLT_VALUES[idx])
-            FLUX_SPECTRUM_FEATURES.append(POES_FLUX_SPECTRUM[idx, :])
-            SME_FEATURES.append(AVG_SME)
-            B_FEATURES.append(AVG_AVG_B)
-            FLOW_SPEED_FEATURES.append(AVG_FLOW_SPEED)
-            PROTON_DENSITY_FEATURES.append(AVG_PROTON_DENSITY)
-            SYM_H_FEATURES.append(AVG_SYM_H)
-
-    refs = {
-        "POES_TIMES_OF_FEATURES": np.asarray(POES_TIMES_OF_FEATURES),
-        "L_FEATURES": np.expand_dims(np.array(L_FEATURES), axis=1),
-        "MLT_FEATURES": np.expand_dims(np.array(MLT_FEATURES), axis=1),
-        "FLUX_SPECTRUM_FEATURES": np.vstack(np.expand_dims(FLUX_SPECTRUM_FEATURES, axis=0)),
-        "SME_FEATURES": np.expand_dims(np.array(SME_FEATURES), axis=1),
-        "B_FEATURES": np.expand_dims(np.array(B_FEATURES), axis=1),
-        "FLOW_SPEED_FEATURES": np.expand_dims(np.array(FLOW_SPEED_FEATURES), axis=1),
-        "PROTON_DENSITY_FEATURES": np.expand_dims(np.array(PROTON_DENSITY_FEATURES), axis=1),
-        "SYM_H_FEATURES": np.expand_dims(np.array(SYM_H_FEATURES), axis=1),
-    }
-
-    return refs
+    return result
 
 
-def normalize_features(FEATURE_REFS: dict, version: str):
+def load_hp30(path):
 
-    MODEL_TRAINING_DATASET = np.load(
-        f"./../chorus_neural_network/STAGE_4/{version}/MODEL_READY_DATA_{version}.npz"
+    hp = pd.read_csv(os.path.abspath(path), delim_whitespace=True)
+
+    start = datetime.datetime(year=1932, month=1, day=1, tzinfo=datetime.UTC)
+    unix_times = []
+    for t in range(len(hp["days_m"])):
+
+        mid_of_interval = start + datetime.timedelta(days= hp["days_m"][t])
+        unix_times.append(mid_of_interval.timestamp())
+
+    order = np.argsort(unix_times)
+
+    return np.asarray(unix_times)[order], np.asarray(hp["Hp30"])[order]
+
+    
+def load_plasmapause_filter(year, return_kp=False):
+
+    start = datetime.datetime(year=year-1, month=1, day=1)
+    end = datetime.datetime(year=year+2, month=1, day=1)
+
+    OMNI = data_loader.load_raw_data_from_config(
+        id=["OMNI", "ONE_HOUR_RESOLUTION"], start=start, end=end
     )
 
-    MEAN_FLUX = MODEL_TRAINING_DATASET["MEAN_FLUXES"]
-    STD_FLUX = MODEL_TRAINING_DATASET["STD_FLUXES"]
-    MEAN_SME = MODEL_TRAINING_DATASET["MEAN_SME"]
-    STD_SME = MODEL_TRAINING_DATASET["STD_SME"]
-    MEAN_AVG_B = MODEL_TRAINING_DATASET["MEAN_AVG_B"]
-    STD_AVG_B = MODEL_TRAINING_DATASET["STD_AVG_B"]
-    MEAN_FLOW_SPEED = MODEL_TRAINING_DATASET["MEAN_FLOW_SPEED"]
-    STD_FLOW_SPEED = MODEL_TRAINING_DATASET["STD_FLOW_SPEED"]
-    MEAN_AVG_PROTON_DENSITY = MODEL_TRAINING_DATASET["MEAN_AVG_PROTON_DENSITY"]
-    STD_AVG_PROTON_DENSITY = MODEL_TRAINING_DATASET["STD_AVG_PROTON_DENSITY"]
-    MEAN_SYM_H = MODEL_TRAINING_DATASET["MEAN_AVG_SYM_H"]
-    STD_SYM_H = MODEL_TRAINING_DATASET["STD_AVG_SYM_H"]
+    UNIX_TIME = cdfepoch.unixtime(OMNI["Epoch"])
+    KP = OMNI["KP"].astype(np.float64)
 
-    MODEL_TRAINING_DATASET.close()
+    invalid_omni_times = (UNIX_TIME < 0) | (KP < 0) | (KP >= 99)
+    KP[invalid_omni_times] = np.nan
 
-    L_FEATURES_POST_PROCESSING = FEATURE_REFS["L_FEATURES"]
-    MLT_FEATURES_POST_PROCESSING_1 = np.sin((FEATURE_REFS["MLT_FEATURES"] * 2 * np.pi) / 24.0)
-    MLT_FEATURES_POST_PROCESSING_2 = np.cos((FEATURE_REFS["MLT_FEATURES"] * 2 * np.pi) / 24.0)
-    FLUX_SPECTRUM_FEATURES_POST_PROCESSING = (
-        np.log(FEATURE_REFS["FLUX_SPECTRUM_FEATURES"][:, 1:3]) - MEAN_FLUX
-    ) / STD_FLUX
-    SME_FEATURES_POST_PROCESSING = (FEATURE_REFS["SME_FEATURES"] - MEAN_SME) / STD_SME
-    FLOW_SPEED_FEATURES_POST_PROCESSING = (
-        FEATURE_REFS["FLOW_SPEED_FEATURES"] - MEAN_FLOW_SPEED
-    ) / STD_FLOW_SPEED
-    SYM_H_POST_PROCESSING = (FEATURE_REFS["SYM_H_FEATURES"] - MEAN_SYM_H) / STD_SYM_H
+    kp_max = find_max_in_last_12h(UNIX_TIME, KP / 10.0)
 
-    FEATURES_POST_PROCESSING = np.hstack(
-        [
-            L_FEATURES_POST_PROCESSING,
-            MLT_FEATURES_POST_PROCESSING_1,
-            MLT_FEATURES_POST_PROCESSING_2,
-            FLUX_SPECTRUM_FEATURES_POST_PROCESSING,
-            SME_FEATURES_POST_PROCESSING,
-            FLOW_SPEED_FEATURES_POST_PROCESSING,
-            SYM_H_POST_PROCESSING,
-        ]
-    )
+    start_of_year = datetime.datetime(year=year, month=1, day=1, tzinfo=datetime.UTC).timestamp()
+    end_of_year = datetime.datetime(year=year + 1, month=1, day=1, tzinfo=datetime.UTC).timestamp()
+    within_year = (start_of_year <= UNIX_TIME) & (UNIX_TIME < end_of_year)
 
-    return FEATURES_POST_PROCESSING
+    L_ppi = 5.99 - 0.382 * kp_max # https://doi.org/10.1029/2001JA009211
+
+    if return_kp:
+
+        return UNIX_TIME[within_year], L_ppi[within_year], kp_max[within_year]
+
+    else:
+
+        return UNIX_TIME[within_year], L_ppi[within_year]
+

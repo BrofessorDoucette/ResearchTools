@@ -8,7 +8,6 @@ import pandas as pd
 from matplotlib import colors
 from mpl_toolkits.axes_grid1.inset_locator import inset_axes
 
-
 def plot_l_cut(
     refs: dict,
     l_cut: float,
@@ -204,3 +203,92 @@ def create_conditional_probability_plot(list1, list2, bins=10):
     # Save the plot
     plt.savefig("conditional_probability_plot.png")
     plt.close()
+
+def plot_2d_heatmap(x, y, z, bins=50, xtitle="X", ytitle="Y", ztitle="Z", title="Heatmap", xlim =None, ylim=None, norm="linear", xscale="linear", yscale="linear", plot_density=False):
+    """
+    Create a 2D heatmap from three arrays where the color represents the average of z_values
+    in bins defined by x_values and y_values.
+
+    Parameters:
+    x_values (array-like): Values for x-axis
+    y_values (array-like): Values for y-axis
+    z_values (array-like): Values to average for color
+    bins (int or tuple): Number of bins for histogram (default: 50)
+
+    Returns:
+    None (displays a matplotlib plot)
+    """
+    # Ensure inputs are numpy arrays
+    x = np.array(x)
+    y = np.array(y)
+    z = np.array(z)
+
+    finite_x = np.isfinite(x)
+    finite_y = np.isfinite(y)
+    finite_z = np.isfinite(z)
+    all_finite = finite_x & finite_y & finite_z
+
+    x = x[all_finite]
+    y = y[all_finite]
+    z = z[all_finite]
+
+    # Create 2D histogram with counts and sum of z_values
+    hist_sum, x_edges, y_edges = np.histogram2d(
+        x, y, bins=bins, weights=z, range=[[xlim[0], xlim[1]], [ylim[0], ylim[1]]]
+    )
+    hist_count, _, _ = np.histogram2d(x, y, bins=bins, range=[[xlim[0], xlim[1]], [ylim[0], ylim[1]]])
+
+    hist_avg = np.zeros_like(hist_sum)
+
+    hist_avg[hist_count == 0] = np.nan  # Set empty bins to NaN
+
+    hist_avg[hist_count != 0] = hist_sum[hist_count != 0] / hist_count[hist_count != 0]
+    
+    # Create mesh for plotting
+    _X, _Y = np.meshgrid(x_edges[:-1], y_edges[:-1])
+
+    if plot_density:
+        fig, axs = plt.subplots(2, 1, figsize=(10,8), sharex=True, sharey=True)
+        axs[0].set_xscale(xscale)
+        axs[0].set_yscale(yscale)
+        axs[0].set_xlim(xlim)
+        axs[0].set_ylim(ylim)
+        coloredmesh = axs[0].pcolormesh(_X, _Y, hist_avg.T, cmap='viridis', norm=norm)
+        cax = inset_axes(axs[0], width="2%", height="100%", loc='right', borderpad=-2)
+        cbar = plt.colorbar(coloredmesh, cax=cax)
+        cbar.set_label(ztitle, loc="center", labelpad=10, rotation=270)
+        axs[0].set_xlabel(xtitle)
+        axs[0].set_ylabel(ytitle)
+        axs[0].set_title(title)
+
+
+        hist_density, _, _ = np.histogram2d(x, y, bins=bins, density=True, range=[[xlim[0], xlim[1]], [ylim[0], ylim[1]]])
+        
+        axs[1].set_xscale(xscale)
+        axs[1].set_yscale(yscale)
+        axs[1].set_xlim(xlim)
+        axs[1].set_ylim(ylim)
+        coloredmesh = axs[1].pcolormesh(_X, _Y, hist_density.T, cmap='viridis')
+        cax = inset_axes(axs[1], width="2%", height="100%", loc='right', borderpad=-2)
+        cbar = plt.colorbar(coloredmesh, cax=cax)
+        cbar.set_label(ztitle, loc="center", labelpad=10, rotation=270)
+        axs[1].set_xlabel(xtitle)
+        axs[1].set_ylabel(ytitle)
+        axs[1].set_title("Density")
+        cbar = plt.colorbar(coloredmesh, cax=cax)
+        cbar.set_label("Joint Density", loc="center", labelpad=25, rotation=270)
+        plt.show()
+    else:
+        
+        plt.figure(figsize=(10, 8))        
+        plt.xscale(xscale)
+        plt.yscale(yscale)
+        plt.xlim(xlim)
+        plt.ylim(ylim)
+        plt.pcolormesh(_X, _Y, hist_avg.T, cmap='viridis', norm=norm)
+        cbar = plt.colorbar()
+        cbar.set_label(ztitle, loc="center", labelpad=25, rotation=270)
+        plt.xlabel(xtitle)
+        plt.ylabel(ytitle)
+        plt.title(title)
+        plt.show()

@@ -132,7 +132,7 @@ class GANRegression:
 
                 # Add regression loss to encourage correct values
                 huber_loss = nn.HuberLoss()(fake_y, batch_y)
-                g_total_loss = g_loss + huber_loss
+                g_total_loss = g_loss
                 g_total_loss.backward()
                 self.g_optimizer.step()
 
