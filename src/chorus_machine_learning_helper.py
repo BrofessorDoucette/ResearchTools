@@ -17,8 +17,8 @@ def load_MPE_year(year: int) -> list:
         POES_sat_refs = data_loader.load_raw_data_from_config(
             id=["POES", "SEM", "MPE"],
             satellite=SAT,
-            start=datetime.datetime(year=year, month=1, day=1, hour=0, minute=0, second=0),
-            end=datetime.datetime(year=year, month=12, day=31, hour=23, minute=59, second=59),
+            start=datetime.datetime(year=year, month=1, day=1, hour=0, minute=0, second=0, tzinfo=datetime.UTC),
+            end=datetime.datetime(year=year, month=12, day=31, hour=23, minute=59, second=59, tzinfo=datetime.UTC),
         )
 
         if POES_sat_refs:
@@ -38,7 +38,7 @@ def load_MPE_year(year: int) -> list:
                 np.isfinite(POES_sat_refs["MLT"]) & (0 < POES_sat_refs["MLT"]) & (POES_sat_refs["MLT"] < 24)
             )
             valid_L = (
-                np.isfinite(POES_sat_refs["lValue"]) & (0 < POES_sat_refs["lValue"]) & (POES_sat_refs["lValue"] < 10)
+                np.isfinite(POES_sat_refs["lValue"]) & (0 < POES_sat_refs["lValue"]) & (POES_sat_refs["lValue"] < 20)
             )
             valid_geogLat = (
                 np.isfinite(POES_sat_refs["geogLat"]) & (-90.0 <= POES_sat_refs["geogLat"]) & (POES_sat_refs["geogLat"] <= 90.0)

@@ -2,6 +2,7 @@ import numpy as np
 from sklearnex import patch_sklearn
 patch_sklearn()
 import sklearn
+from scipy.spatial import KDTree
 
 def calculate_values(combined_array, values, k=3, min_neighbors=2, max_dist=0.1):
 
@@ -21,12 +22,10 @@ def calculate_values(combined_array, values, k=3, min_neighbors=2, max_dist=0.1)
     weights = 1 / (valid_distances + 1e-9)  # Avoid division by zero
     weights /= np.sum(weights)  # Normalize weights
 
-
-    returned_values = np.full_like()
     
     valid_values = values[valid_indices]
 
-    return np.nansum(valid_values * weights), np.nansum()
+    return np.nansum(valid_values * weights)
 
 
 def knn_interpolate_polar(r, theta, values, r_query, theta_query, k=3, max_dist=0.1, min_neighbors=2):
@@ -67,8 +66,6 @@ def knn_interpolate_polar(r, theta, values, r_query, theta_query, k=3, max_dist=
 
     # Initialize output array
     combined_array = np.hstack([indices, distances])
-
-    for 
     
     values = np.apply_along_axis(
         calculate_values, 1, combined_array, values, k, min_neighbors, max_dist

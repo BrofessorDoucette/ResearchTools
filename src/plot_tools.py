@@ -245,7 +245,7 @@ def plot_2d_heatmap(x, y, z, bins=50, xtitle="X", ytitle="Y", ztitle="Z", title=
     hist_avg[hist_count != 0] = hist_sum[hist_count != 0] / hist_count[hist_count != 0]
     
     # Create mesh for plotting
-    _X, _Y = np.meshgrid(x_edges[:-1], y_edges[:-1])
+    _X, _Y = np.meshgrid(x_edges, y_edges)
 
     if plot_density:
         fig, axs = plt.subplots(2, 1, figsize=(10,8), sharex=True, sharey=True)
