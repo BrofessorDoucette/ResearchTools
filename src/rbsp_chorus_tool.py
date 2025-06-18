@@ -1,6 +1,7 @@
 import numpy as np
 import pandas as pd
 import tqdm
+import matplotlib.pyplot as plt
 
 def emfisis_noise_floor(f):
 
@@ -67,9 +68,12 @@ def calculate_chorus_amplitudes_from_bsum(B_uvw, B_sum, Plan_SVD, Ell_SVD, lower
                 
                 power = np.nansum(power_hz[satisfies_filters] * bandwidths[satisfies_filters])
                 chorus[T] = power * (1000.0**2)  # Convert from nT^2 to pT^2
-        else:
-            chorus[T] = np.nan
 
+    
+    fig, axs = plt.subplot(2, 1)
+    axs[0].plot(chorus)
+    axs[1].plot(f_ce)
+    
     return chorus
 
 
