@@ -1,1 +1,0 @@
-Best parameters: ({'max_depth': 9, 'max_features': 2, 'min_samples_leaf': 3, 'min_samples_split': 6, 'n_estimators': 143}, np.float64(0.2881147380512229))

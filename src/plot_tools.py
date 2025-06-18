@@ -204,7 +204,7 @@ def create_conditional_probability_plot(list1, list2, bins=10):
     plt.savefig("conditional_probability_plot.png")
     plt.close()
 
-def plot_2d_heatmap(x, y, z, bins=50, xtitle="X", ytitle="Y", ztitle="Z", title="Heatmap", xlim =None, ylim=None, norm="linear", xscale="linear", yscale="linear", plot_density=False):
+def plot_2d_heatmap(x, y, z, bins=50, xtitle="X", ytitle="Y", ztitle="Z", title="Heatmap", xlim =None, ylim=None, norm="linear", xscale="linear", yscale="linear", plot_density=False, density_norm="symlog"):
     """
     Create a 2D heatmap from three arrays where the color represents the average of z_values
     in bins defined by x_values and y_values.
@@ -268,7 +268,7 @@ def plot_2d_heatmap(x, y, z, bins=50, xtitle="X", ytitle="Y", ztitle="Z", title=
         axs[1].set_yscale(yscale)
         axs[1].set_xlim(xlim)
         axs[1].set_ylim(ylim)
-        coloredmesh = axs[1].pcolormesh(_X, _Y, hist_density.T, cmap='viridis')
+        coloredmesh = axs[1].pcolormesh(_X, _Y, hist_density.T, cmap='viridis', norm=density_norm)
         cax = inset_axes(axs[1], width="2%", height="100%", loc='right', borderpad=-2)
         cbar = plt.colorbar(coloredmesh, cax=cax)
         cbar.set_label(ztitle, loc="center", labelpad=10, rotation=270)

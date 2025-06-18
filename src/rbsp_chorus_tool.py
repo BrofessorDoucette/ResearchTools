@@ -44,7 +44,7 @@ def calculate_chorus_amplitudes_from_bsum(B_uvw, B_sum, Plan_SVD, Ell_SVD, lower
     planarity_floor = 0.6
     ellipticity_floor = 0.7
 
-    chorus = np.zeros(shape=(B_uvw.shape[0]))
+    chorus = np.full_like(B_uvw.shape[0], np.nan, dtype=np.float64)
 
     for T in tqdm.tqdm(range(B_uvw.shape[0])):
 
@@ -63,8 +63,10 @@ def calculate_chorus_amplitudes_from_bsum(B_uvw, B_sum, Plan_SVD, Ell_SVD, lower
 
             satisfies_filters = greater_than_noise_floor & greater_than_planarity_floor & greater_than_ellipticity_floor
 
-            power = np.nansum(power_hz[satisfies_filters] * bandwidths[satisfies_filters])
-            chorus[T] = power * (1000.0**2)  # Convert from nT^2 to pT^2
+            if np.any(satisfies_filters):
+                
+                power = np.nansum(power_hz[satisfies_filters] * bandwidths[satisfies_filters])
+                chorus[T] = power * (1000.0**2)  # Convert from nT^2 to pT^2
         else:
             chorus[T] = np.nan
 

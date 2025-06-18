@@ -4,10 +4,11 @@ import torch.optim as optim
 import torch.nn.functional as F
 from torch.utils.data import Dataset, DataLoader
 import numpy as np
+import tqdm
 
 
 # Custom Dataset for time series and conditional coordinates
-class TimeSeriesDataset(Dataset):
+class CustomDataset(Dataset):
     def __init__(self, time_series_data, coordinates, targets):
         """
         time_series_data: List of tensors, each of shape (num_vectors, time_steps)
@@ -23,15 +24,17 @@ class TimeSeriesDataset(Dataset):
         return len(self.time_series_data)
 
     def __getitem__(self, idx):
-        return self.time_series_data[idx], self.coordinates[idx], self.targets[idx]
+        return self.time_series_data[idx, None, :], self.coordinates[idx, :], self.targets[idx, None]
 
 
 # Generator Network
 class Generator(nn.Module):
-    def __init__(self, noise_dim, condition_dim, output_dim, hidden_dim, num_vectors):
+    def __init__(self, noise_dim, condition_dim, hidden_dim, num_vectors):
         super(Generator, self).__init__()
         self.num_vectors = num_vectors
-        self.output_dim = output_dim
+        self.condition_dim = condition_dim
+        self.noise_dim = noise_dim
+        self.hidden_dim = hidden_dim
 
         # Convolutional branch for time series data
         self.conv_branch = nn.Sequential(
@@ -60,7 +63,7 @@ class Generator(nn.Module):
             nn.Linear((hidden_dim // 2) * 3, hidden_dim),
             nn.LeakyReLU(0.2),
             nn.BatchNorm1d(hidden_dim),
-            nn.Linear(hidden_dim, output_dim),
+            nn.Linear(hidden_dim, 1),
         )
 
     def forward(self, noise, time_series, conditions):
@@ -82,11 +85,11 @@ class Generator(nn.Module):
 
 # Critic Network
 class Critic(nn.Module):
-    def __init__(self, target_dim, condition_dim, hidden_dim, num_vectors):
+    def __init__(self, condition_dim, hidden_dim, num_vectors):
         super(Critic, self).__init__()
         self.num_vectors = num_vectors
-        self.target_dim = target_dim
-
+        self.condition_dim = condition_dim
+        self.hidden_dim = hidden_dim
         # Convolutional branch for time series data
         self.conv_branch = nn.Sequential(
             nn.Conv1d(num_vectors, hidden_dim, kernel_size=5, stride=1, padding=2),
@@ -104,7 +107,7 @@ class Critic(nn.Module):
         )
 
         # Target input (regression targets)
-        self.target_fc = nn.Linear(target_dim, hidden_dim // 2)
+        self.target_fc = nn.Linear(1, hidden_dim // 2)
 
         # Combined branch (input size: hidden_dim/2 from conv + hidden_dim/2 from fc + hidden_dim/2 from target)
         self.combined = nn.Sequential(
@@ -155,14 +158,25 @@ def compute_gradient_penalty(critic, real_samples, fake_samples, time_series, co
 
 # Training Loop
 def train_wgan_gp(
-    generator, critic, dataloader, noise_dim, condition_dim, num_epochs, device, lambda_gp=10
+    generator,
+    critic,
+    dataloader,
+    noise_dim,
+    condition_dim,
+    num_batches=10000,
+    device="cuda",
+    lambda_gp=10
 ):
     g_optimizer = optim.Adam(generator.parameters(), lr=1e-4, betas=(0.5, 0.9))
     c_optimizer = optim.Adam(critic.parameters(), lr=1e-4, betas=(0.5, 0.9))
-    n_critic = 5  # Number of critic updates per generator update
 
-    for epoch in range(num_epochs):
-        for i, (time_series, conditions, real_targets) in enumerate(dataloader):
+    total_g_loss = 0
+    total_c_loss = 0
+    for b in tqdm.tqdm(range(num_batches)):
+
+        
+
+        for i, (time_series, conditions, real_targets) in enumerate(tqdm.tqdm(dataloader)):
             batch_size = real_targets.size(0)
             time_series, conditions, real_targets = (
                 time_series.to(device),
@@ -171,63 +185,38 @@ def train_wgan_gp(
             )
 
             # Train Critic
-            for _ in range(n_critic):
-                noise = torch.randn(batch_size, noise_dim, device=device)
-                fake_targets = generator(noise, time_series, conditions)
+            noise = torch.randn(batch_size, noise_dim, device=device)
+            fake_targets = generator(noise, time_series, conditions)
 
-                c_optimizer.zero_grad()
-                real_validity = critic(real_targets, time_series, conditions)
-                fake_validity = critic(fake_targets.detach(), time_series, conditions)
+            c_optimizer.zero_grad()
+            real_validity = critic(real_targets, time_series, conditions)
+            fake_validity = critic(fake_targets.detach(), time_series, conditions)
 
-                gradient_penalty = compute_gradient_penalty(
-                    critic, real_targets, fake_targets.detach(), time_series, conditions, device
-                )
-                c_loss = (
-                    torch.mean(fake_validity) - torch.mean(real_validity) + lambda_gp * gradient_penalty
-                )
+            gradient_penalty = compute_gradient_penalty(
+                critic, real_targets, fake_targets.detach(), time_series, conditions, device
+            )
+            c_loss = (
+                torch.mean(fake_validity) - torch.mean(real_validity) + lambda_gp * gradient_penalty
+            )
 
-                c_loss.backward()
-                c_optimizer.step()
+            c_loss.backward()
+            c_optimizer.step()
 
             # Train Generator
             g_optimizer.zero_grad()
             noise = torch.randn(batch_size, noise_dim, device=device)
             fake_targets = generator(noise, time_series, conditions)
-            g_loss = -torch.mean(critic(fake_targets, time_series, conditions))
+            fake_validity = critic(fake_targets.detach(), time_series, conditions)
+            g_loss = -torch.mean(fake_validity)
 
             g_loss.backward()
             g_optimizer.step()
 
-            if i % 1 == 0:
-                print(
-                    f"Epoch [{epoch}/{num_epochs}] Batch [{i}/{len(dataloader)}] "
-                    f"Critic Loss: {c_loss.item():.4f} Generator Loss: {g_loss.item():.4f}"
-                )
+            total_g_loss += g_loss.item()
+            total_c_loss += c_loss.item()
 
+        print(
+            f"Epoch [{epoch}/{num_epochs}] Batch [{i}/{len(dataloader)}] "
+            f"Avg Training Critic Loss: {total_c_loss / len(dataloader):.4f} Avg Training Generator Loss: {total_g_loss / len(dataloader):.4f}"
+            )
 
-# Example Usage
-if __name__ == "__main__":
-    # Hyperparameters
-    noise_dim = 2  # Noise dimension
-    condition_dim = 4  # Number of conditional coordinates
-    output_dim = 1  # Regression output dimension
-    hidden_dim = 128
-    num_vectors = 1  # Number of time series vectors
-    time_steps = 512  # Length of each time series
-    batch_size = 32
-    num_epochs = 100
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
-    # Initialize models
-    generator = Generator(noise_dim, condition_dim, output_dim, hidden_dim, num_vectors).to(device)
-    critic = Critic(output_dim, condition_dim, hidden_dim, num_vectors).to(device)
-
-    # Dummy dataset (replace with your data)
-    time_series_data = [torch.randn(num_vectors, time_steps) for _ in range(1000)]
-    coordinates = [torch.randn(condition_dim) for _ in range(1000)]
-    targets = [torch.randn(output_dim) for _ in range(1000)]
-    dataset = TimeSeriesDataset(time_series_data, coordinates, targets)
-    dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=True)
-
-    # Train the model
-    train_wgan_gp(generator, critic, dataloader, noise_dim, condition_dim, num_epochs, device)
