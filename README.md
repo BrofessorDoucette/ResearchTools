@@ -1,0 +1,1 @@
+This repository is filled mostly with python scripts that I used for data analysis while I was a graduate student working with Professor Allison Jaynes. The studies themselves were usually handled in jupyter notebooks while the heavy duty lifting was done in the source .py files. 
