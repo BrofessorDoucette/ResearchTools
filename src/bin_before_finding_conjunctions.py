@@ -134,7 +134,6 @@ if __name__ == "__main__":
     # Stage 2, clean then combine RBSP, OMNI, and POES Data and find conjunctions between RBSP and POES
 
     VERSION = "v1"
-    FIELD_MODEL = "T89"
     MODEL_TYPE = "LOWER_BAND"
 
     pdata_folder = os.path.abspath("./../processed_data/chorus_neural_network/")
@@ -227,7 +226,7 @@ if __name__ == "__main__":
 
             t_Lpp, Lpp = chorus_machine_learning_helper.load_plasmapause_filter(year=_year)
 
-            Lpp_i = np.interp(x=SAT["UNIX_TIME"], xp=t_Lpp, fp=Lpp, left=None, right=None)
+            Lpp_i = np.interp(x=SAT["UNIX_TIME"], xp=t_Lpp, fp=Lpp, left=np.nan, right=np.nan)
             outside_plasmasphere = SAT["L"] > Lpp_i
 
             POES.append({
@@ -353,7 +352,7 @@ if __name__ == "__main__":
     print(f"Conjunctions to be saved: {CONJUNCTIONS_TO_BE_SAVED.shape}")
 
     np.savez(
-        file=os.path.join(output_folder, f"CONJUNCTIONS_{VERSION}_{FIELD_MODEL}_{MODEL_TYPE}.npz"),
+        file=os.path.join(output_folder, f"CONJUNCTIONS_{VERSION}_{MODEL_TYPE}.npz"),
         CONJUNCTIONS=CONJUNCTIONS_TO_BE_SAVED,
         SME_CHUNKS=SME_CHUNKS_TO_BE_SAVED
     )
