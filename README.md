@@ -12,3 +12,15 @@ This is how the best model performed on training and testing sets after making s
 
 <img src="best_model_mse_training.png" alt="drawing" width="600"/>
 <img src="best_model_mse_validation.png" alt="drawing" width="600"/>
+
+The best models appeared to do well on a hold out set.
+
+<img src="best_model_predictions_on_a_holdout_set.png" alt="drawing" width="600"/>
+
+This is the output from a traditional POES proxy using least squares to find the optimal P value for each time series point for comparison.
+
+<img src="poes_proxy.png" alt="drawing" width="600"/>
+
+I had found an interesting similarity between average chorus power, Kp, and flow speed.
+
+<img src="interesting_relation_between_optimal_p_value_K_and_flow_speed.png" alt="drawing" width="600"/>
