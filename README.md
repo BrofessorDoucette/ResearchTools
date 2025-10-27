@@ -21,7 +21,7 @@ For comparison, this is the output from a traditional POES proxy using least squ
 
 <img src="poes_proxy.png" alt="drawing" width="800"/>
 
-I had found an interesting similarity between the optimal P value used in the POES proxy, Kp, and flow speed.
+I had found an interesting similarity between the optimal P value used in the POES proxy, Kp, and flow speed. I believe this is due to the plasmapause moving and only looking at L in the outer belt.
 
 <img src="interesting_relation_between_optimal_p_value_K_and_flow_speed.png" alt="drawing" width="500"/>
 
