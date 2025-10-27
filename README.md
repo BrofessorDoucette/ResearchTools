@@ -25,4 +25,10 @@ I had found an interesting similarity between the optimal P value used in the PO
 
 <img src="interesting_relation_between_optimal_p_value_K_and_flow_speed.png" alt="drawing" width="500"/>
 
+The models appeared to capture the expected chorus power distribution in L and MLT space.
 
+<img src="best_model_outputs_plotted_in_MLT_L_space.png" alt="drawing" width="500"/>
+
+Here is how the model performed when I used it to look at the past few solar cycles.
+
+<img src="Chorus_Over_The_Solar_Cycle.png" alt="drawing" width="500"/>
