@@ -51,7 +51,7 @@ Interestingly, that looked very similar to what Tsurutani and his student had fo
 
 ### Diffusion Coefficient Simulation:
 
-Another project I worked on during this time was creating a simulation that uses the 1-D fokker-planck equation to model radial diffusion in Earth's outer belt. This diffusion simulation used real data points from the Van Allen Probes as initial conditions. Here is how the simulation looked using brautigam and alberts diffusion coefficients on an electron enhancement event in 2013 when there was almost no chorus.
+Another project I worked on during this time was creating a simulation that uses the 1-D fokker-planck equation to model radial diffusion in Earth's outer belt. This diffusion simulation used real data points from the Van Allen Probes as initial conditions. Here is how the simulation looked using brautigam and alberts diffusion coefficients on an electron enhancement event in 2013 when there was almost no chorus. The diffusion does not account for all of changes in phase space density observed, suggesting the diffusion coefficients are too small. 
 
 <img src="diffusion_using_brautigam_and_albert.png" alt="drawing" width="800"/>
 
