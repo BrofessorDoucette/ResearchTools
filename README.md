@@ -41,3 +41,7 @@ Transforming to the standard deviations from the mean for each month looked like
 
 <img src="Standard_Deviations_From_Mean_In_Phases_Of_Solar_Cycle.png" alt="drawing" width="800"/>
 
+Interestingly, that looked very similar to what Tsurutani and his student had found for the relative occurence of HILDAA events, suggesting a relationship between HILDCAA events and increased global chorus power. The evidence here suggests that during the declining phase of the solar cycle, more HILDCAA events occur than during other parts of the solar cycle. 
+
+<img src="Tsurutanis_Plot.png" alt="drawing" width="800"/>
+
