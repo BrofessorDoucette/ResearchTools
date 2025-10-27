@@ -8,7 +8,7 @@ This is the average distribution that EMFISIS measured during the Van Allen Prob
 
 <img src="Average_Chorus_Vs_L_MLT.png" alt="drawing" width="600"/>
 
-This is how the best model performed on training and testing sets after making sure data was not being leaked,
+This is how the best model performed on training and testing sets after making sure data was not being leaked. I believe the best model was a boosted gradient random forest, used the electron density data from EMFISIS as input, SME as input, the fluxes as input, as well as transformed MLT and L. The model parameters were optimized using a grid search. 
 
 <img src="best_model_mse_training.png" alt="drawing" width="600"/>
 <img src="best_model_mse_validation.png" alt="drawing" width="600"/>
