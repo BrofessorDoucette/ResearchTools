@@ -8,7 +8,5 @@ However, the project I had spent the most time on was predicting the chorus powe
 
 This is the average distribution that EMFISIS measured during the Van Allen Probes Lifetime. The model I developed should essentially be able to accurately predict deviations from this average using the extra information from POES and indices.
 
-![Average_Data_Example](Average_Chorus_Vs_L_MLT.png "Example of the average data")
-
-
 <img src="Average_Chorus_Vs_L_MLT.png" alt="drawing" width="800"/>
+\
