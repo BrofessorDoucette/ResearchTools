@@ -31,4 +31,4 @@ The models appeared to capture the expected chorus power distribution in L and M
 
 Here is how the model performed when I used it to look at the past few solar cycles.
 
-<img src="Chorus_Over_The_Solar_Cycle.png" alt="drawing" width="500"/>
+<img src="Chorus_Over_The_Solar_Cycle.png" alt="drawing" width="800"/>
