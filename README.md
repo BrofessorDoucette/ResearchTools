@@ -55,6 +55,8 @@ Another project I worked on during this time was creating a simulation that uses
 
 <img src="diffusion_using_brautigam_and_albert.png" alt="drawing" width="800"/>
 
+Here is how the simulations performed for the same event using experimentally derived diffusion coefficients from RBSP. 
 
+<img src="RBSP_A_vs_Experimentally_Derived_Diffusion_Coefficients.png" alt="drawing" width="800"/>
 
 
