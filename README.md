@@ -6,6 +6,6 @@ The project I had spent the most time on was predicting the chorus power measure
 
 This is the average distribution that EMFISIS measured during the Van Allen Probes Lifetime. The model I developed should essentially be able to accurately predict deviations from this average using the extra information from POES and indices.
 
-<img src="Average_Chorus_Vs_L_MLT.png" alt="drawing" width="400"/>
+<img src="Average_Chorus_Vs_L_MLT.png" alt="drawing" width="600"/>
 
 
