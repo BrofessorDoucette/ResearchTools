@@ -15,11 +15,11 @@ This is how the best model performed on training and testing sets after making s
 
 The best models appeared to do well on a hold out set.
 
-<img src="best_model_predictions_on_a_holdout_set.png" alt="drawing" width="500"/>
+<img src="best_model_predictions_on_a_holdout_set.png" alt="drawing" width="800"/>
 
 For comparison, this is the output from a traditional POES proxy using least squares to find the optimal P value for each time series point.
 
-<img src="poes_proxy.png" alt="drawing" width="500"/>
+<img src="poes_proxy.png" alt="drawing" width="800"/>
 
 I had found an interesting similarity between the optimal P value used in the POES proxy, Kp, and flow speed.
 
