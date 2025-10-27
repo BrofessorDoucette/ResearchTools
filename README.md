@@ -17,7 +17,7 @@ The best models appeared to do well on a hold out set.
 
 <img src="best_model_predictions_on_a_holdout_set.png" alt="drawing" width="500"/>
 
-This is the output from a traditional POES proxy using least squares to find the optimal P value for each time series point for comparison.
+For comparison, this is the output from a traditional POES proxy using least squares to find the optimal P value for each time series point.
 
 <img src="poes_proxy.png" alt="drawing" width="500"/>
 
