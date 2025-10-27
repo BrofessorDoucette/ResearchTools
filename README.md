@@ -8,4 +8,7 @@ This is the average distribution that EMFISIS measured during the Van Allen Prob
 
 <img src="Average_Chorus_Vs_L_MLT.png" alt="drawing" width="600"/>
 
+This is how the best model performed on training and testing sets after making sure data was not being leaked,
 
+<img src="best_model_mse_training.png" alt="drawing" width="600"/>
+<img src="best_model_mse_validation.png" alt="drawing" width="600"/>
