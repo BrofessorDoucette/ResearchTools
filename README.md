@@ -17,7 +17,7 @@ The best models appeared to do well on a hold out set.
 
 <img src="best_model_predictions_on_a_holdout_set.png" alt="drawing" width="800"/>
 
-For comparison, this is the output from a traditional POES proxy using least squares to find the optimal P value for each time series point.
+For comparison, this is the output from a traditional POES proxy using least squares to find the optimal P value for each time series point. Obviously the chorus is overestimated at low L values.
 
 <img src="poes_proxy.png" alt="drawing" width="800"/>
 
@@ -29,6 +29,15 @@ The models appeared to capture the expected chorus power distribution in L and M
 
 <img src="best_model_outputs_plotted_in_MLT_L_space.png" alt="drawing" width="500"/>
 
-Here is how the model performed when I used it to look at the past few solar cycles.
+Here is how the best model performed when I used it to look at the past few solar cycles.
 
 <img src="Chorus_Over_The_Solar_Cycle.png" alt="drawing" width="800"/>
+
+Summing the chorus (literally adding the columns in the plot above) in each month, and then doing statistics with the total cumulative chorus in each month:
+
+<img src="Cumulative_Chorus_In_Phases_Of_Solar_Cycle.png" alt="drawing" width="800"/>
+
+Transforming to the standard deviations from the mean for each month looked like this:
+
+<img src="Standard_Deviations_From_Mean_In_Phases_Of_Solar_Cycle.png" alt="drawing" width="800"/>
+
