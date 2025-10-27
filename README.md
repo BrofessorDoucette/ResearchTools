@@ -6,7 +6,7 @@ The case studies themselves were usually handled in jupyter notebooks while the 
 
 ### Chorus Machine Learning Project:
 
-The project I had spent the most time on was predicting the chorus power measured by EMFISIS on the Van Allen Probes, using low-earth orbit electron flux measurements from POES and geomagnetic indices (Kp, SME). This was a hard problem because of the heteroscedasticity of the raw data, and also the lack of conjunctions between EMFISIS and POES. I was unable to fix the problem to my satisfaction using transformations (box-cox, log, etc), weights, or a loss function that lets the variance be variable (see https://docs.pytorch.org/docs/stable/generated/torch.nn.GaussianNLLLoss.html). This meant the residuals were not normal and the dataset was heavily imbalanced.
+The project I had spent the most time on was predicting the chorus power measured by EMFISIS on the Van Allen Probes, using low-earth orbit electron flux measurements from POES and geomagnetic indices (Kp, SME). This was a hard problem because of the heteroscedasticity of the raw data, and also the lack of conjunctions between EMFISIS and POES. I was unable to fix the problem to my satisfaction using transformations (box-cox, log, etc), weights, or a loss function that lets the variance be variable (see https://docs.pytorch.org/docs/stable/generated/torch.nn.GaussianNLLLoss.html). This meant the residuals were not normal and the dataset was already heavily imbalanced, making this a challenging project.
 
 This is the average distribution that EMFISIS measured during the Van Allen Probes Lifetime. The model I developed should essentially be able to accurately predict deviations from this average using the extra information from POES and indices.
 
