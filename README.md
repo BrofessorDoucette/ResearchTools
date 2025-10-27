@@ -6,21 +6,23 @@ The project I had spent the most time on was predicting the chorus power measure
 
 This is the average distribution that EMFISIS measured during the Van Allen Probes Lifetime. The model I developed should essentially be able to accurately predict deviations from this average using the extra information from POES and indices.
 
-<img src="Average_Chorus_Vs_L_MLT.png" alt="drawing" width="600"/>
+<img src="Average_Chorus_Vs_L_MLT.png" alt="drawing" width="500"/>
 
 This is how the best model performed on training and testing sets after making sure data was not being leaked. I believe the best model was a boosted gradient random forest, used the electron density data from EMFISIS as input, SME as input, the fluxes as input, as well as transformed MLT and L. The model parameters were optimized using a grid search. 
 
-<img src="best_model_mse_training.png" alt="drawing" width="600"/>
-<img src="best_model_mse_validation.png" alt="drawing" width="600"/>
+<img src="best_model_mse_training.png" alt="drawing" width="500"/>
+<img src="best_model_mse_validation.png" alt="drawing" width="500"/>
 
 The best models appeared to do well on a hold out set.
 
-<img src="best_model_predictions_on_a_holdout_set.png" alt="drawing" width="600"/>
+<img src="best_model_predictions_on_a_holdout_set.png" alt="drawing" width="500"/>
 
 This is the output from a traditional POES proxy using least squares to find the optimal P value for each time series point for comparison.
 
-<img src="poes_proxy.png" alt="drawing" width="600"/>
+<img src="poes_proxy.png" alt="drawing" width="500"/>
 
-I had found an interesting similarity between average chorus power, Kp, and flow speed.
+I had found an interesting similarity between the optimal P value used in the POES proxy, Kp, and flow speed.
 
-<img src="interesting_relation_between_optimal_p_value_K_and_flow_speed.png" alt="drawing" width="600"/>
+<img src="interesting_relation_between_optimal_p_value_K_and_flow_speed.png" alt="drawing" width="500"/>
+
+
